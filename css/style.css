@@ -1,0 +1,55 @@
+body{
+  margin:0;
+  font-family:'Segoe UI',sans-serif;
+  background:#111;
+  color:white;
+}
+
+header{
+  background:#000;
+  padding:20px;
+  text-align:center;
+  font-size:22px;
+  font-weight:bold;
+}
+
+#map{
+  height:50vh;
+  width:100%;
+}
+
+.container{
+  padding:20px;
+}
+
+button{
+  width:100%;
+  padding:15px;
+  border:none;
+  border-radius:15px;
+  font-size:18px;
+  font-weight:bold;
+  background:linear-gradient(45deg,#FFD700,#FFA500);
+  color:black;
+  margin-top:10px;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+button:hover{
+  transform:scale(1.03);
+}
+
+.card{
+  background:#1c1c1c;
+  margin-top:15px;
+  padding:20px;
+  border-radius:20px;
+  text-align:center;
+}
+
+.info{
+  text-align:center;
+  margin-top:10px;
+  color:#FFA500;
+}
