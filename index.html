@@ -3,60 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TAXITON PRO - Super App</title>
+    <title>TAXITON PRO | Full Stack Single File</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background:#f1f5f9; height:100vh; display: flex; flex-direction: column; }
-        header { background:#111827; color:white; padding:15px; text-align:center; font-weight:bold; font-size: 1.2rem; }
+        :root { --p: #3b82f6; --s: #22c55e; --w: #f59e0b; --d: #0f172a; --bg: #f8fafc; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family: 'Inter', sans-serif; }
+        body { background: var(--bg); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         
         #map { height: 45vh; width: 100%; }
-        .panel { flex: 1; background:white; border-radius:25px 25px 0 0; padding:20px; overflow-y:auto; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); }
-        
-        /* UI Elements */
-        .card { background:#fff; border: 1px solid #e2e8f0; padding:15px; border-radius:12px; margin-bottom:10px; }
-        .btn { width: 100%; padding:12px; border:none; border-radius:10px; cursor:pointer; font-weight:bold; transition: 0.3s; margin-top: 10px;}
-        .btn-accept { background:#22c55e; color:white; }
-        .btn-request { background:#3b82f6; color:white; }
-        
-        /* Screens */
-        .overlay { position:fixed; inset:0; background:#0f172a; z-index:2000; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; padding:20px; }
+        .panel { flex:1; background: white; border-radius: 30px 30px 0 0; padding: 20px; z-index: 1000; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); overflow-y: auto; margin-top: -20px; }
+
+        /* Estados con Colores Reales */
+        .status-pill { display: inline-block; padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; margin-bottom: 10px; }
+        .pendiente { background: #fef3c7; color: #b45309; } /* Amarillo */
+        .aceptado { background: #dbeafe; color: #1d4ed8; } /* Azul */
+        .en_camino { background: #dcfce7; color: #15803d; } /* Verde */
+        .finalizado { background: #f1f5f9; color: #475569; } /* Gris */
+
+        /* Cards */
+        .card { background: #fff; border: 1px solid #eef2f6; padding: 15px; border-radius: 18px; margin-bottom: 12px; transition: 0.2s; }
+        .taxi-item { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .taxi-item:hover { border-color: var(--p); background: #f0f7ff; }
+
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+        .btn-p { background: var(--p); color: white; }
+        .btn-s { background: var(--s); color: white; }
+
+        .overlay { position: fixed; inset: 0; background: var(--d); z-index: 9999; display: flex; flex-direction: column; justify-content: center; padding: 30px; color: white; }
         .hidden { display: none !important; }
-        input { width: 100%; padding:12px; margin:8px 0; border-radius:8px; border:none; }
+        input { background: #1e293b; border: 1px solid #334155; padding: 15px; border-radius: 12px; color: white; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
 <div id="roleScreen" class="overlay">
-    <h2>🚖 TAXITON PRO</h2>
-    <p>Selecciona tu rol para iniciar:</p>
-    <button class="btn btn-request" onclick="setRole('client')">Soy PASAJERO</button>
-    <button class="btn btn-accept" onclick="setRole('driver')">Soy TAXISTA</button>
+    <h1 style="text-align:center; margin-bottom:40px;">🚖 TAXITON<span style="color:var(--p)">PRO</span></h1>
+    <button class="btn btn-p" onclick="setRole('client')">PASAJERO</button>
+    <button class="btn" style="background:#334155; color:white; margin-top:15px;" onclick="setRole('driver')">CONDUCTOR</button>
 </div>
 
 <div id="loginScreen" class="overlay hidden">
-    <h2 id="loginTitle">Acceso</h2>
-    <input type="email" id="email" placeholder="Correo" value="test@test.com">
+    <h2 id="loginTitle" style="margin-bottom:20px">Acceso</h2>
+    <input type="email" id="email" placeholder="Correo" value="wilmer@test.com">
     <input type="password" id="password" placeholder="Contraseña" value="123456">
-    <button class="btn btn-accept" onclick="login()">Entrar al Sistema</button>
+    <button class="btn btn-p" onclick="login()">ENTRAR</button>
 </div>
 
-<header id="appHeader">🚖 TAXITON PRO</header>
 <div id="map"></div>
 
 <div class="panel">
-    <div id="statusBadge" style="text-align: center; margin-bottom: 10px; font-weight: bold; color: #3b82f6;"></div>
-    <div id="mainContent">
-        </div>
+    <div id="mainUI">
+        <p style="text-align:center; color:#64748b; margin-top:20px;">Iniciando GPS...</p>
+    </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, setDoc, updateDoc, query, where, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCw7WoC5AjqnZ2_vagJs5ZklOZt3b4ZRtg",
@@ -71,138 +79,125 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    let map, userMarker, taxiMarkers = {}, userRole = '', myLocation = null;
+    let map, userLoc, myRole = '', taxiMarkers = {}, activeRideId = null;
 
-    // --- FLUJO DE INICIO ---
-    window.setRole = (role) => {
-        userRole = role;
-        document.getElementById('roleScreen').classList.add('hidden');
-        document.getElementById('loginScreen').classList.remove('hidden');
-        document.getElementById('loginTitle').innerText = role === 'client' ? 'Pasajero' : 'Conductor';
-    };
+    window.setRole = (r) => { myRole = r; document.getElementById('roleScreen').classList.add('hidden'); document.getElementById('loginScreen').classList.remove('hidden'); };
 
     window.login = async () => {
         try {
             await signInWithEmailAndPassword(auth, document.getElementById("email").value, document.getElementById("password").value);
             document.getElementById("loginScreen").classList.add("hidden");
-            initApp();
-        } catch (e) { alert("Error de acceso"); }
+            initSystem();
+        } catch (e) { alert("Error"); }
     };
 
-    function initApp() {
+    function initSystem() {
         navigator.geolocation.getCurrentPosition(pos => {
-            myLocation = [pos.coords.latitude, pos.coords.longitude];
-            map = L.map("map").setView(myLocation, 15);
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-            userMarker = L.marker(myLocation).addTo(map).bindPopup("Tú estás aquí").openPopup();
+            userLoc = [pos.coords.latitude, pos.coords.longitude];
+            map = L.map("map", { zoomControl: false }).setView(userLoc, 15);
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
+            L.marker(userLoc).addTo(map).bindPopup("Tú");
 
-            if (userRole === 'client') {
-                startClientLogic();
-            } else {
-                startDriverLogic();
-            }
+            myRole === 'client' ? logicPasajero() : logicConductor();
         });
     }
 
-    // --- LÓGICA DEL CLIENTE ---
-    function startClientLogic() {
-        document.getElementById('appHeader').innerText = "MODO PASAJERO";
-        // 1. Ver taxis disponibles
-        onSnapshot(collection(db, "taxis"), snapshot => {
-            let html = "<h3>Taxis Disponibles</h3>";
-            snapshot.forEach(d => {
-                const taxi = d.data();
-                html += `<div class="card" onclick="requestRide('${d.id}')">
-                            🚕 Taxi Disponible (Click para pedir)
-                         </div>`;
-                updateMapMarker(d.id, [taxi.lat, taxi.lng], 'taxi');
+    // --- PASAJERO ---
+    function logicPasajero() {
+        onSnapshot(collection(db, "taxis"), snap => {
+            let html = `<h3>Taxis cerca de ti</h3>`;
+            let list = [];
+            snap.forEach(d => {
+                const t = d.data();
+                const dist = getDist(userLoc, [t.lat, t.lng]);
+                list.push({ id: d.id, ...t, dist });
+                updateMarker(d.id, [t.lat, t.lng]);
             });
-            document.getElementById("mainContent").innerHTML = html;
+            list.sort((a,b) => a.dist - b.dist).forEach(t => {
+                html += `<div class="card taxi-item" onclick="crearViaje('${t.id}')">
+                    <div><b>🚕 Taxi Premium</b><br><small>A ${t.dist.toFixed(2)} km</small></div>
+                    <span class="status-pill en_camino">PEDIR</span>
+                </div>`;
+            });
+            document.getElementById('mainUI').innerHTML = html;
         });
     }
 
-    window.requestRide = async (taxiId) => {
-        const rideId = auth.currentUser.uid;
-        await setDoc(doc(db, "rides", rideId), {
-            passengerId: rideId,
-            taxiId: taxiId,
-            status: "pendiente",
-            lat: myLocation[0],
-            lng: myLocation[1]
+    window.crearViaje = async (tid) => {
+        activeRideId = auth.currentUser.uid;
+        await setDoc(doc(db, "rides", activeRideId), { 
+            taxiId: tid, passengerId: activeRideId, status: 'pendiente', 
+            lat: userLoc[0], lng: userLoc[1] 
         });
-        listenRideStatus(rideId);
+        watchRide();
     };
 
-    function listenRideStatus(id) {
-        onSnapshot(doc(db, "rides", id), d => {
-            const ride = d.data();
-            document.getElementById("statusBadge").innerText = "ESTADO: " + ride.status.toUpperCase();
-            if(ride.status === 'aceptado') {
-                document.getElementById("mainContent").innerHTML = `<div class="card">✅ El taxi va en camino...</div>`;
-            }
+    function watchRide() {
+        onSnapshot(doc(db, "rides", activeRideId), d => {
+            if(!d.exists()) return;
+            const r = d.data();
+            const s = r.status;
+            document.getElementById('mainUI').innerHTML = `
+                <div class="card" style="text-align:center">
+                    <span class="status-pill ${s}">${s.toUpperCase()}</span>
+                    <h3>${s === 'pendiente' ? 'Esperando al taxista...' : '¡Viaje en curso!'}</h3>
+                    <p>Mantente en tu posición.</p>
+                    ${s === 'finalizado' ? '<button class="btn btn-p" onclick="location.reload()">NUEVO VIAJE</button>' : ''}
+                </div>`;
         });
     }
 
-    // --- LÓGICA DEL CONDUCTOR ---
-    async function startDriverLogic() {
-        document.getElementById('appHeader').innerText = "MODO CONDUCTOR";
-        const myTaxiId = auth.currentUser.uid;
+    // --- CONDUCTOR ---
+    async function logicConductor() {
+        const uid = auth.currentUser.uid;
+        await setDoc(doc(db, "taxis", uid), { lat: userLoc[0], lng: userLoc[1], status: 'libre' });
 
-        // Registrarse como taxi activo
-        await setDoc(doc(db, "taxis", myTaxiId), { lat: myLocation[0], lng: myLocation[1], status: 'libre' });
-
-        // Escuchar solicitudes pendientes para este taxi
-        const q = query(collection(db, "rides"), where("taxiId", "==", myTaxiId), where("status", "==", "pendiente"));
-        onSnapshot(q, snapshot => {
-            let html = "<h3>Solicitudes Nuevas</h3>";
-            snapshot.forEach(d => {
-                const ride = d.data();
+        onSnapshot(query(collection(db, "rides"), where("taxiId", "==", uid)), snap => {
+            let html = `<h3>Solicitudes</h3>`;
+            snap.forEach(d => {
+                const r = d.data();
+                if(r.status === 'finalizado') return;
                 html += `<div class="card">
-                            📍 Nuevo viaje solicitado
-                            <button class="btn btn-accept" onclick="acceptRide('${d.id}')">ACEPTAR VIAJE</button>
-                         </div>`;
+                    <span class="status-pill ${r.status}">${r.status.toUpperCase()}</span>
+                    <p>Cliente a ${getDist(userLoc, [r.lat, r.lng]).toFixed(2)} km</p>
+                    ${r.status === 'pendiente' ? `<button class="btn btn-s" onclick="updateStatus('${d.id}','aceptado')">ACEPTAR</button>` : ''}
+                    ${r.status === 'aceptado' ? `<button class="btn btn-p" onclick="iniciarMovimiento('${d.id}')">IR HACIA CLIENTE</button>` : ''}
+                    ${r.status === 'en_camino' ? `<button class="btn" style="background:red;color:white" onclick="updateStatus('${d.id}','finalizado')">FINALIZAR</button>` : ''}
+                </div>`;
             });
-            document.getElementById("mainContent").innerHTML = html;
+            document.getElementById('mainUI').innerHTML = html;
         });
     }
 
-    window.acceptRide = async (rideId) => {
-        await updateDoc(doc(db, "rides", rideId), { status: "aceptado" });
-        simulateMovement(rideId);
-    };
+    window.updateStatus = async (rid, s) => { await updateDoc(doc(db, "rides", rid), { status: s }); };
 
-    async function simulateMovement(rideId) {
-        const rideRef = doc(db, "rides", rideId);
-        const rideSnap = await getDoc(rideRef);
-        const dest = [rideSnap.data().lat, rideSnap.data().lng];
-        let curr = [...myLocation];
+    window.iniciarMovimiento = async (rid) => {
+        await updateStatus(rid, 'en_camino');
+        const rDoc = await getDoc(doc(db, "rides", rid));
+        const dest = [rDoc.data().lat, rDoc.data().lng];
+        let cur = [userLoc[0], userLoc[1]];
 
-        const timer = setInterval(async () => {
-            // Movimiento suave (nos acercamos 15% cada 2 seg)
-            curr[0] += (dest[0] - curr[0]) * 0.15;
-            curr[1] += (dest[1] - curr[1]) * 0.15;
-
-            // Actualizar ubicación en DB para que el cliente la vea
-            await updateDoc(doc(db, "taxis", auth.currentUser.uid), { lat: curr[0], lng: curr[1] });
-            userMarker.setLatLng(curr); // Mover mi propio marcador
-
-            if (Math.abs(curr[0] - dest[0]) < 0.0001) {
-                clearInterval(timer);
-                await updateDoc(rideRef, { status: "en_puerta" });
-                alert("Has llegado donde el cliente");
-            }
-        }, 2000);
+        const move = setInterval(async () => {
+            cur[0] += (dest[0] - cur[0]) * 0.2;
+            cur[1] += (dest[1] - cur[1]) * 0.2;
+            await updateDoc(doc(db, "taxis", auth.currentUser.uid), { lat: cur[0], lng: cur[1] });
+            if(getDist(cur, dest) < 0.005) clearInterval(move);
+        }, 1500);
     }
 
-    // --- UTILIDADES ---
-    function updateMapMarker(id, pos, type) {
-        if (!taxiMarkers[id]) {
-            taxiMarkers[id] = L.marker(pos).addTo(map);
-        } else {
-            taxiMarkers[id].setLatLng(pos);
-        }
+    // --- HELPERS ---
+    function getDist(a, b) {
+        const R = 6371;
+        const dLat = (b[0]-a[0]) * Math.PI/180;
+        const dLon = (b[1]-a[1]) * Math.PI/180;
+        const v = Math.sin(dLat/2)**2 + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(v), Math.sqrt(1-v));
     }
 
+    function updateMarker(id, pos) {
+        if (!taxiMarkers[id]) taxiMarkers[id] = L.marker(pos, {icon: L.divIcon({html:'🚕', className:'t'})}).addTo(map);
+        else taxiMarkers[id].setLatLng(pos);
+    }
 </script>
 </body>
 </html>
