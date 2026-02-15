@@ -1,285 +1,215 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taxiton PRO</title>
+<title>Taxiton Pro</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
-body{background:#111;color:white;text-align:center;overflow:hidden}
-
-/* SPLASH */
-#splash{
-position:fixed;width:100%;height:100vh;
-background:linear-gradient(135deg,#000,#1c1c1c,#ffcc00);
-display:flex;flex-direction:column;
-justify-content:center;align-items:center;
-z-index:5000;
-}
-.logo{font-size:90px;animation:float 2s infinite;}
-@keyframes float{
-0%{transform:translateY(0);}
-50%{transform:translateY(-15px);}
-100%{transform:translateY(0);}
+body{margin:0;font-family:Arial;background:#0f172a;color:white}
+h2{margin:10px 0}
+.container{padding:20px}
+input,button{
+width:100%;
+padding:12px;
+margin:8px 0;
+border-radius:8px;
+border:none;
+font-size:16px
 }
 button{
-width:90%;padding:14px;margin-top:10px;
-border:none;border-radius:30px;
-background:#ffcc00;font-weight:bold;font-size:16px;
+background:#22c55e;
+color:white;
+font-weight:bold;
+cursor:pointer
 }
-input{
-width:90%;padding:12px;margin-top:10px;
-border:none;border-radius:8px;
+button:hover{opacity:0.8}
+#map{height:70vh}
+.card{
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+background:white;
+color:black;
+padding:15px;
+border-radius:20px 20px 0 0;
+box-shadow:0 -5px 20px rgba(0,0,0,0.3)
 }
-.screen{display:none;height:100vh}
-
-/* MAP WINDOW */
-.map-overlay{
-position:fixed;width:100%;height:100vh;
-background:linear-gradient(135deg,#000,#1c1c1c);
+.hidden{display:none}
+.topbar{
+background:#111827;
+padding:10px;
+text-align:center;
+font-weight:bold
 }
-.map-window{
-position:absolute;top:5%;left:50%;
-transform:translateX(-50%);
-width:95%;height:90vh;
-background:#fff;border-radius:25px;
-overflow:hidden;box-shadow:0 15px 40px rgba(0,0,0,0.5);
-}
-#map{height:100%;width:100%}
-.top-bar{
-position:absolute;top:0;width:100%;
-display:flex;justify-content:space-between;
-align-items:center;padding:15px;
-background:rgba(0,0,0,0.6);color:white;z-index:3000;
-}
-.mode-btn{
-background:white;color:black;
-padding:8px 15px;border-radius:20px;
-border:none;font-size:14px;
-}
-.status{
-position:absolute;top:70px;left:50%;
-transform:translateX(-50%);
-background:white;color:black;
-padding:10px 20px;border-radius:20px;
-z-index:3000;
-}
-.bottom-panel{
-position:absolute;bottom:0;width:100%;
-background:white;color:black;
-padding:20px;border-radius:25px 25px 0 0;
-z-index:3000;
-}
-.main-btn{
-width:100%;margin-top:10px;
-padding:15px;border-radius:30px;
-background:#ffcc00;font-weight:bold;
-border:none;
-}
-.cancel-btn{
-background:red;color:white;
+.logout{
+position:absolute;
+right:10px;
+top:10px;
+background:red;
+padding:5px 10px;
+border-radius:6px;
+font-size:12px
 }
 </style>
 </head>
 <body>
 
-<!-- SPLASH -->
-<div id="splash">
-<div class="logo">🚖</div>
-<h2>Taxiton PRO</h2>
-<button onclick="mostrarLogin()">Iniciar</button>
+<div class="topbar">
+🚖 TAXITON PRO
+<button class="logout" onclick="logout()">Salir</button>
 </div>
 
 <!-- LOGIN -->
-<div id="login" class="screen">
+<div id="login" class="container">
 <h2>Iniciar Sesión</h2>
 <input type="email" id="email" placeholder="Correo">
 <input type="password" id="password" placeholder="Contraseña">
 <button onclick="login()">Entrar</button>
 </div>
 
-<!-- ROLE -->
-<div id="role" class="screen">
-<h2>Selecciona modo</h2>
-<button onclick="modoConductor()">👨‍✈️ Conductor</button>
-<button onclick="modoPasajero()">👤 Pasajero</button>
+<!-- SELECCIÓN ROL -->
+<div id="role" class="container hidden">
+<h2>Selecciona tu rol</h2>
+<button onclick="selectRole('cliente')">Soy Cliente</button>
+<button onclick="selectRole('taxi')">Soy Taxi</button>
 </div>
 
-<!-- MAP -->
-<div id="mapScreen" class="screen">
-<div class="map-overlay"></div>
-<div class="map-window">
-<div class="top-bar">
-<div>🚖 Taxiton</div>
-<button class="mode-btn" onclick="volverModo()">Salir</button>
-</div>
+<!-- MAPA -->
+<div id="mapScreen" class="hidden">
 <div id="map"></div>
-<div class="status" id="status">Buscando ubicación...</div>
-<div class="bottom-panel" id="panel" style="display:none;">
-<div id="tripInfo">Taxis disponibles: <span id="taxiCount">0</span></div>
-<button class="main-btn" onclick="solicitarTaxi()">Solicitar Taxi 🚖</button>
-<button class="main-btn cancel-btn" onclick="cancelarViaje()">Cancelar</button>
-</div>
-</div>
-</div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div class="card">
+<h3 id="status">Esperando acción...</h3>
+<p id="taxiCount"></p>
+<div id="tripInfo"></div>
+<button onclick="requestTaxi()">Solicitar Taxi</button>
+</div>
+</div>
 
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { 
+getAuth, signInWithEmailAndPassword, signOut 
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { 
+getFirestore, doc, setDoc, onSnapshot, collection 
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCw7WoC5AjqnZ2_vagJs5ZklOZt3b4ZRtg",
-  authDomain: "taxiton-eba22.firebaseapp.com",
-  projectId: "taxiton-eba22",
-  storageBucket: "taxiton-eba22.firebasestorage.app",
-  messagingSenderId: "1091576841981",
-  appId: "1:1091576841981:web:1dd7bbefb518580fb76094"
+apiKey: "AIzaSyCw7WoC5AjqnZ2_vagJs5ZklOZt3b4ZRtg",
+authDomain: "taxiton-eba22.firebaseapp.com",
+projectId: "taxiton-eba22",
+storageBucket: "taxiton-eba22.appspot.com",
+messagingSenderId: "1091576841981",
+appId: "1:1091576841981:web:1dd7bbefb518580fb76094"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-let map,userMarker,markers={},nearestTaxi,routeLine;
-let currentRideId=null;
-let userRole=null;
+let map;
+let userMarker;
+let roleSelected;
+let userLocation;
 
-window.mostrarLogin=()=>{
-splash.style.display="none";
-login.style.display="block";
-}
-
-window.login=async()=>{
+// LOGIN
+window.login = async () => {
 try{
-await signInWithEmailAndPassword(auth,email.value,password.value);
-login.style.display="none";
-role.style.display="block";
-}catch(e){alert("Crea usuario en Firebase Authentication");}
+const email=document.getElementById("email").value;
+const password=document.getElementById("password").value;
+await signInWithEmailAndPassword(auth,email,password);
+document.getElementById("login").classList.add("hidden");
+document.getElementById("role").classList.remove("hidden");
+}catch(e){
+alert("Error: "+e.message);
 }
+};
 
-function iniciarMapa(){
-role.style.display="none";
-mapScreen.style.display="block";
+// LOGOUT
+window.logout = async ()=>{
+await signOut(auth);
+location.reload();
+};
 
-map=L.map('map').setView([13.69,-89.21],13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+// SELECCIONAR ROL
+window.selectRole = (role)=>{
+roleSelected=role;
+document.getElementById("role").classList.add("hidden");
+document.getElementById("mapScreen").classList.remove("hidden");
+initMap();
+};
 
-navigator.geolocation.watchPosition(pos=>{
-const lat=pos.coords.latitude;
-const lng=pos.coords.longitude;
+// INICIAR MAPA
+function initMap(){
+navigator.geolocation.getCurrentPosition(position=>{
+userLocation=[
+position.coords.latitude,
+position.coords.longitude
+];
 
-if(!userMarker){
-userMarker=L.marker([lat,lng]).addTo(map);
-}else{
-userMarker.setLatLng([lat,lng]);
-}
+map=L.map('map').setView(userLocation,15);
 
-map.setView([lat,lng],15);
-status.innerText="📍 Ubicación detectada";
-});
-}
-
-window.modoConductor=()=>{
-userRole="driver";
-iniciarMapa();
-
-navigator.geolocation.watchPosition(async pos=>{
-await setDoc(doc(db,"drivers",auth.currentUser.uid),{
-lat:pos.coords.latitude,
-lng:pos.coords.longitude,
-available:true,
-updatedAt:Date.now()
-});
-});
-
-onSnapshot(collection(db,"rides"),snapshot=>{
-snapshot.docChanges().forEach(change=>{
-const ride=change.doc.data();
-if(ride.status==="waiting" && ride.driverId===null){
-if(confirm("Nuevo viaje 🚖 ¿Aceptar?")){
-aceptarViaje(change.doc.id);
-}
-}
-});
-});
-}
-
-window.modoPasajero=()=>{
-userRole="passenger";
-iniciarMapa();
-panel.style.display="block";
-
-onSnapshot(collection(db,"drivers"),snapshot=>{
-taxiCount.innerText=snapshot.size;
-snapshot.docChanges().forEach(change=>{
-const data=change.doc.data();
-const id=change.doc.id;
-
-if(markers[id]){
-markers[id].setLatLng([data.lat,data.lng]);
-}else{
-markers[id]=L.marker([data.lat,data.lng],{
-icon:L.divIcon({html:"🚖",className:"",iconSize:[30,30]})
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19
 }).addTo(map);
-}
-});
-});
-}
 
-window.solicitarTaxi=async()=>{
-let rideRef=doc(collection(db,"rides"));
-await setDoc(rideRef,{
-passengerId:auth.currentUser.uid,
-driverId:null,
-status:"waiting",
-pickup:{
-lat:userMarker.getLatLng().lat,
-lng:userMarker.getLatLng().lng
-},
-createdAt:Date.now()
-});
-currentRideId=rideRef.id;
-status.innerText="🔎 Buscando conductor...";
-escucharEstado();
-}
+userMarker=L.marker(userLocation)
+.addTo(map)
+.bindPopup("Tu ubicación")
+.openPopup();
 
-async function aceptarViaje(id){
-await setDoc(doc(db,"rides",id),{
-status:"accepted",
-driverId:auth.currentUser.uid
-},{merge:true});
-alert("Viaje aceptado 🚖");
-}
-
-function escucharEstado(){
-onSnapshot(doc(db,"rides",currentRideId),(docSnap)=>{
-if(!docSnap.exists())return;
-let ride=docSnap.data();
-if(ride.status==="accepted"){
-status.innerText="🚖 Conductor en camino";
+if(roleSelected==="taxi"){
+startTaxiMode();
+}else{
+listenTaxis();
 }
 });
 }
 
-window.cancelarViaje=async()=>{
-if(!currentRideId)return;
-await setDoc(doc(db,"rides",currentRideId),{
-status:"cancelled"
-},{merge:true});
-status.innerText="❌ Viaje cancelado";
+// MODO TAXI
+function startTaxiMode(){
+document.getElementById("status").innerText="Modo TAXI activo 🚖";
+
+navigator.geolocation.watchPosition(async position=>{
+let lat=position.coords.latitude;
+let lng=position.coords.longitude;
+
+await setDoc(doc(db,"taxis",auth.currentUser.uid),{
+lat,lng,available:true
+});
+
+});
 }
 
-window.volverModo=()=>{
-mapScreen.style.display="none";
-role.style.display="block";
+// ESCUCHAR TAXIS
+function listenTaxis(){
+onSnapshot(collection(db,"taxis"),snapshot=>{
+let count=0;
+snapshot.forEach(doc=>{
+let data=doc.data();
+L.marker([data.lat,data.lng])
+.addTo(map)
+.bindPopup("Taxi Disponible");
+count++;
+});
+document.getElementById("taxiCount").innerText=
+"🚕 Taxis disponibles: "+count;
+});
 }
+
+// SOLICITAR TAXI
+window.requestTaxi = ()=>{
+document.getElementById("status").innerText=
+"🔎 Buscando taxi cercano...";
+};
+
 </script>
 </body>
 </html>
