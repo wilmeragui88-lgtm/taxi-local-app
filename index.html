@@ -3,67 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TAXITON PRO</title>
+    <title>TAXITON PRO | Conductor</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
-        :root { --p: #3b82f6; --s: #22c55e; --d: #0f172a; }
-        * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
-        body, html { height: 100%; background: #f1f5f9; overflow: hidden; }
+        :root { --p: #3b82f6; --s: #22c55e; --d: #0f172a; --bg: #f8fafc; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family: 'Inter', sans-serif; }
+        body, html { height: 100%; background: var(--bg); overflow: hidden; }
 
-        /* FIX: Mapa con posición absoluta para que no falle el renderizado */
-        #map { position: absolute; top: 0; left: 0; right: 0; height: 50%; background: #cbd5e1; z-index: 1; }
-
+        #map { position: absolute; top: 0; width: 100%; height: 40%; z-index: 1; border-bottom: 2px solid #ddd; }
+        
         .panel { 
-            position: absolute; bottom: 0; left: 0; right: 0; height: 55%; 
-            background: white; border-radius: 25px 25px 0 0; padding: 20px; 
-            z-index: 100; box-shadow: 0 -10px 20px rgba(0,0,0,0.1); overflow-y: auto;
+            position: absolute; bottom: 0; width: 100%; height: 60%; 
+            background: white; border-radius: 30px 30px 0 0; padding: 20px; 
+            z-index: 100; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); overflow-y: auto;
         }
 
-        .btn { width: 100%; padding: 15px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 16px; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 15px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 16px; transition: 0.3s; }
         .btn-p { background: var(--p); color: white; }
+        .btn-s { background: var(--s); color: white; }
+        .btn-edit { background: #f1f5f9; color: #475569; font-size: 12px; padding: 8px; width: auto; margin: 0; }
         
-        .overlay { position: fixed; inset: 0; background: var(--d); z-index: 9999; display: flex; flex-direction: column; justify-content: center; padding: 30px; color: white; }
+        .overlay { position: fixed; inset: 0; background: var(--d); z-index: 9999; display: flex; flex-direction: column; padding: 30px; color: white; overflow-y: auto; }
         .hidden { display: none !important; }
-        input { background: #1e293b; border: 1px solid #334155; padding: 15px; border-radius: 12px; color: white; margin-bottom: 12px; width: 100%; }
-
-        .taxi-card { border: 1px solid #eee; padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .status { font-size: 12px; padding: 4px 8px; border-radius: 10px; font-weight: bold; }
-        .online { background: #dcfce7; color: #15803d; }
+        
+        input, textarea, select { background: #1e293b; border: 1px solid #334155; padding: 14px; border-radius: 12px; color: white; margin-bottom: 12px; width: 100%; font-size: 14px; }
+        
+        .profile-card { background: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; }
+        .profile-img { width: 65px; height: 65px; border-radius: 50%; object-fit: cover; border: 3px solid var(--p); }
+        
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-box { background: #f8fafc; padding: 12px; border-radius: 15px; text-align: center; border: 1px solid #edf2f7; }
+        .stat-box small { color: #64748b; display: block; font-size: 10px; text-transform: uppercase; }
+        .stat-box b { color: var(--d); font-size: 14px; }
     </style>
 </head>
 <body>
 
-<div id="roleScreen" class="overlay">
-    <h1 style="text-align:center; margin-bottom:30px;">TAXITON PRO</h1>
-    <button class="btn btn-p" onclick="showLogin('driver')">SOY CONDUCTOR</button>
-    <button class="btn" style="background:#334155; color:white; margin-top:10px;" onclick="showLogin('client')">SOY PASAJERO</button>
-</div>
-
-<div id="loginScreen" class="overlay hidden">
-    <h2 id="logTitle">Acceso</h2>
-    <p id="logSub" style="font-size: 12px; color: #94a3b8; margin-bottom: 15px;">Introduce tus datos para continuar</p>
-    <input type="email" id="email" placeholder="Correo" value="wilmer@test.com">
-    <input type="password" id="password" placeholder="Contraseña" value="123456">
-    <button class="btn btn-p" id="entryBtn" onclick="handleAuth()">INGRESAR AL PANEL</button>
+<div id="setupScreen" class="overlay">
+    <h2 style="text-align:center; margin-bottom:10px;">PERFIL DE CONDUCTOR</h2>
+    <p style="text-align:center; color:#94a3b8; font-size:12px; margin-bottom:20px;">Completa tu información para empezar a recibir viajes.</p>
+    
+    <input type="text" id="cName" placeholder="Nombre completo">
+    <input type="text" id="cCar" placeholder="Vehículo (Ej: Toyota Corolla 2022)">
+    <input type="text" id="cPlate" placeholder="Número de Placa">
+    <input type="text" id="cPhoto" placeholder="URL de tu foto (opcional)">
+    <textarea id="cBio" placeholder="Experiencia o mensaje para pasajeros..."></textarea>
+    
+    <input type="email" id="email" placeholder="Correo electrónico">
+    <input type="password" id="password" placeholder="Contraseña">
+    
+    <button class="btn btn-s" onclick="saveDriver()">GUARDAR Y ACTIVAR GPS</button>
 </div>
 
 <div id="map"></div>
 
 <div class="panel">
-    <div id="loader" style="text-align:center; color:var(--p); font-weight:bold; margin-bottom:10px;">📍 Validando Ubicación...</div>
-    <h3 id="panelTitle">Servicios Cercanos</h3>
-    <hr style="margin: 10px 0; opacity: 0.2;">
-    <div id="mainUI">
+    <div class="profile-card">
+        <img src="https://via.placeholder.com/150" id="driverImg" class="profile-img">
+        <div style="flex:1">
+            <b id="driverTitle" style="font-size: 18px;">Cargando...</b><br>
+            <small id="driverCar" style="color:var(--p); font-weight:600;"></small>
         </div>
+        <button class="btn btn-edit" onclick="location.reload()">EDITAR</button>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-box"><small>Estado</small><b style="color:var(--s)">EN LÍNEA</b></div>
+        <div class="stat-box"><small>Viajes Hoy</small><b>0</b></div>
+    </div>
+
+    <div id="mainUI">
+        <div style="text-align:center; padding:30px; color:#94a3b8;">
+            <p>Buscando solicitudes de viaje en tu zona...</p>
+            <div style="margin-top:15px;" class="loader"></div>
+        </div>
+    </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, collection, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCw7WoC5AjqnZ2_vagJs5ZklOZt3b4ZRtg",
@@ -78,95 +101,67 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    let map, userLoc, myRole = '';
+    let map, userLoc;
 
-    window.showLogin = (r) => {
-        myRole = r;
-        document.getElementById('roleScreen').classList.add('hidden');
-        document.getElementById('loginScreen').classList.remove('hidden');
-    };
-
-    window.handleAuth = async () => {
+    window.saveDriver = async () => {
         const email = document.getElementById('email').value;
         const pass = document.getElementById('password').value;
-        const btn = document.getElementById('entryBtn');
-        
-        btn.innerText = "VERIFICANDO...";
-        btn.disabled = true;
+        const name = document.getElementById('cName').value;
+
+        if(!email || !pass || !name) return alert("Nombre, correo y clave son obligatorios.");
 
         try {
-            await signInWithEmailAndPassword(auth, email, pass);
-            loadPanel();
-        } catch (error) {
+            const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+            const uid = userCred.user.uid;
+
+            const driverData = {
+                name: name,
+                car: document.getElementById('cCar').value,
+                plate: document.getElementById('cPlate').value,
+                photo: document.getElementById('cPhoto').value || "https://via.placeholder.com/150",
+                bio: document.getElementById('cBio').value,
+                role: 'driver',
+                status: 'online'
+            };
+
+            await setDoc(doc(db, "users", uid), driverData);
+            startDriverApp(driverData);
+        } catch (e) {
             try {
-                // Si falla, intentamos registrarlo automáticamente
-                await createUserWithEmailAndPassword(auth, email, pass);
-                loadPanel();
-            } catch (err) {
-                // Si ya existe o hay error, forzamos la entrada si los campos tienen texto
-                if(email.includes('@') && pass.length > 5) loadPanel();
-                else alert("Datos inválidos");
-            }
+                await signInWithEmailAndPassword(auth, email, pass);
+                const d = await getDoc(doc(db, "users", auth.currentUser.uid));
+                startDriverApp(d.data());
+            } catch(err) { alert("Error: " + err.message); }
         }
     };
 
-    function loadPanel() {
-        document.getElementById('loginScreen').classList.add('hidden');
-        
-        navigator.geolocation.getCurrentPosition((pos) => {
+    function startDriverApp(data) {
+        document.getElementById('setupScreen').classList.add('hidden');
+        document.getElementById('driverTitle').innerText = data.name;
+        document.getElementById('driverCar').innerText = data.car;
+        document.getElementById('driverImg').src = data.photo;
+
+        navigator.geolocation.getCurrentPosition(pos => {
             userLoc = [pos.coords.latitude, pos.coords.longitude];
             initMap(userLoc);
-        }, () => {
-            // Ubicación manual si el GPS falla (San Salvador)
-            initMap([13.6893, -89.1872]);
-        }, { timeout: 5000 });
+            // Hacer al conductor visible para los pasajeros
+            setDoc(doc(db, "taxis", auth.currentUser.uid), {
+                name: data.name,
+                car: data.car,
+                lat: userLoc[0],
+                lng: userLoc[1],
+                status: 'online'
+            }, {merge: true});
+        }, () => alert("GPS necesario para trabajar."));
     }
 
     function initMap(coords) {
-        document.getElementById('loader').innerHTML = "✅ Conectado";
-        
-        // Inicializar mapa solo si no existe
-        if (!map) {
+        if(!map) {
             map = L.map('map', { zoomControl: false }).setView(coords, 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            L.marker(coords).addTo(map).bindPopup("Tu posición");
-            
-            // FIX para que el mapa se pinte correctamente en móviles
-            setTimeout(() => { map.invalidateSize(); }, 800);
+            L.marker(coords).addTo(map).bindPopup("Estás aquí operando");
+            setTimeout(() => map.invalidateSize(), 800);
         }
-
-        if (myRole === 'driver') setupDriver(); else setupClient();
-    }
-
-    async function setupDriver() {
-        document.getElementById('panelTitle').innerText = "Panel: Conductor en Línea";
-        const uid = auth.currentUser?.uid || "invitado";
-        await setDoc(doc(db, "taxis", uid), { status: 'online', lat: userLoc[0], lng: userLoc[1], name: "Taxi Wilmer" });
-        
-        document.getElementById('mainUI').innerHTML = `
-            <div style="background:#dcfce7; padding:20px; border-radius:15px; text-align:center;">
-                <h3 style="color:#15803d;">SISTEMA ACTIVO</h3>
-                <p>Estás visible para los pasajeros en el mapa.</p>
-            </div>`;
-    }
-
-    function setupClient() {
-        document.getElementById('panelTitle').innerText = "Taxis Disponibles";
-        onSnapshot(collection(db, "taxis"), (snap) => {
-            let html = "";
-            snap.forEach(d => {
-                const t = d.data();
-                if(t.status === 'online') {
-                    html += `
-                    <div class="taxi-card">
-                        <div><b>🚕 Taxi Premium</b><br><small>A pocos minutos</small></div>
-                        <span class="status online">EN LÍNEA</span>
-                    </div>`;
-                    L.marker([t.lat, t.lng]).addTo(map);
-                }
-            });
-            document.getElementById('mainUI').innerHTML = html || "<p style='text-align:center;'>Buscando conductores...</p>";
-        });
     }
 </script>
 </body>
