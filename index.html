@@ -70,29 +70,36 @@
             margin-bottom: 10px; border: 1px solid #e2e8f0;
         }
 
-        /* --- VISTA TAXISTA (TU PANEL) --- */
+        /* --- VISTA TAXISTA (TU PANEL MODIFICADO) --- */
         #taxiApp { display: none; height: 100vh; background: var(--bg-app); flex-direction: column; }
-        .t-dashboard { padding: 40px 20px; text-align: center; color: white; flex: 1; position: relative; }
+        
+        /* Mitad superior: Controles */
+        .t-dashboard { height: 50vh; padding: 20px; text-align: center; color: white; display: flex; flex-direction: column; justify-content: center; position: relative; }
         
         .status-circle {
-            width: 160px; height: 160px; border-radius: 50%; border: 8px solid #1e293b;
-            font-size: 24px; font-weight: bold; margin: 50px auto;
+            width: 150px; height: 150px; border-radius: 50%; border: 8px solid #1e293b;
+            font-size: 24px; font-weight: bold; margin: 10px auto;
             display: flex; align-items: center; justify-content: center; cursor: pointer;
             transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .status-circle.on { background: var(--primary); box-shadow: 0 0 40px rgba(34, 197, 94, 0.4); border-color: #052e16; }
         .status-circle.off { background: #334155; }
 
-        /* EL MAPA PEQUEÑO */
+        /* Mitad inferior: Mapa expandido */
         #miniMapContainer {
-            position: fixed; bottom: 30px; right: 20px;
-            width: 160px; height: 160px;
-            border: 3px solid #334155; border-radius: 25px;
-            overflow: hidden; z-index: 4000;
-            display: none; /* Se activa al aceptar viaje */
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            height: 50vh; width: 100%;
+            border-top: 3px solid #334155;
+            position: relative;
+            display: none; /* Aparece en ON */
         }
         #miniMap { width: 100%; height: 100%; }
+
+        /* Botón estilo de mapa */
+        .map-toggle-btn {
+            position: absolute; top: 10px; left: 10px; z-index: 4500;
+            background: rgba(0,0,0,0.7); color: white; border: 1px solid #555;
+            padding: 8px 12px; border-radius: 8px; font-size: 11px; cursor: pointer;
+        }
 
         #tripAlert {
             position: fixed; top: 20px; left: 15px; right: 15px;
@@ -135,19 +142,20 @@
         <h2 id="welcomeMsg">Panel de Control</h2>
         <div class="status-circle off" id="statusToggle" onclick="toggleWork()">OFF</div>
         <p id="statusLabel" style="color: var(--slate)">Presiona para conectar</p>
-        
-        <div id="miniMapContainer">
-            <div id="miniMap"></div>
-            <div style="position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.7); font-size:10px; padding:3px;">UBICACIÓN CLIENTE</div>
-        </div>
+    </div>
+    
+    <div id="miniMapContainer">
+        <button class="map-toggle-btn" onclick="nextMapStyle()">🎨 CAMBIAR COLOR</button>
+        <div id="miniMap"></div>
+        <div style="position:absolute; bottom:0; width:100%; background:rgba(0,0,0,0.7); font-size:10px; padding:5px; text-align:center; z-index:4000;">MAPA DE RASTREO</div>
+    </div>
 
-        <div id="tripAlert">
-            <h3 style="color: var(--secondary);">¡NUEVO VIAJE!</h3>
-            <p id="clientName" style="margin: 15px 0; font-size: 18px; font-weight: bold;"></p>
-            <div style="display: flex; gap: 10px;">
-                <button onclick="respondTrip('aceptado')" style="flex: 1; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: bold;">ACEPTAR</button>
-                <button onclick="respondTrip('rechazado')" style="flex: 1; padding: 15px; background: var(--danger); color: white; border: none; border-radius: 12px; font-weight: bold;">RECHAZAR</button>
-            </div>
+    <div id="tripAlert">
+        <h3 style="color: var(--secondary);">¡NUEVO VIAJE!</h3>
+        <p id="clientName" style="margin: 15px 0; font-size: 18px; font-weight: bold;"></p>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="respondTrip('aceptado')" style="flex: 1; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 12px; font-weight: bold;">ACEPTAR</button>
+            <button onclick="respondTrip('rechazado')" style="flex: 1; padding: 15px; background: var(--danger); color: white; border: none; border-radius: 12px; font-weight: bold;">RECHAZAR</button>
         </div>
     </div>
 </div>
@@ -176,6 +184,14 @@
     let map, miniMap, userPos, watchId;
     let markers = {};
     let miniMarker;
+    let mapStyleIdx = 0;
+    let currentTileLayer;
+
+    const styles = [
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    ];
 
     window.setRole = (r) => {
         role = r;
@@ -219,7 +235,7 @@
         navigator.geolocation.getCurrentPosition(p => {
             userPos = [p.coords.latitude, p.coords.longitude];
             map = L.map('map', {zoomControl: false}).setView(userPos, 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            L.tileLayer(styles[1]).addTo(map);
             L.circleMarker(userPos, {radius: 8, color: '#3b82f6', fillOpacity: 1, fillColor: '#3b82f6'}).addTo(map);
             
             onSnapshot(collection(db, "activos"), snap => {
@@ -245,9 +261,8 @@
         window.myTaxiData = d.data();
         document.getElementById('welcomeMsg').innerText = "Hola, " + (window.myTaxiData?.nombre || "Wil");
         
-        // Carga mini mapa
         miniMap = L.map('miniMap', {zoomControl: false, attributionControl: false}).setView([0,0], 16);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(miniMap);
+        currentTileLayer = L.tileLayer(styles[0]).addTo(miniMap);
         miniMarker = L.circleMarker([0,0], {radius: 7, color: '#ef4444', fillOpacity: 1, fillColor: '#ef4444'}).addTo(miniMap);
 
         onSnapshot(query(collection(db, "viajes"), where("taxiId", "==", auth.currentUser.uid), where("status", "==", "pendiente")), snap => {
@@ -261,18 +276,28 @@
         });
     }
 
+    window.nextMapStyle = () => {
+        mapStyleIdx = (mapStyleIdx + 1) % styles.length;
+        miniMap.removeLayer(currentTileLayer);
+        currentTileLayer = L.tileLayer(styles[mapStyleIdx]).addTo(miniMap);
+    };
+
     window.toggleWork = () => {
         const btn = document.getElementById('statusToggle');
+        const container = document.getElementById('miniMapContainer');
         if (btn.classList.contains('off')) {
             btn.className = "status-circle on"; btn.innerText = "ON";
+            container.style.display = 'block';
+            setTimeout(() => miniMap.invalidateSize(), 300);
             watchId = navigator.geolocation.watchPosition(p => {
                 setDoc(doc(db, "activos", auth.currentUser.uid), { ...window.myTaxiData, lat: p.coords.latitude, lng: p.coords.longitude });
+                if(!window.activeTripId) miniMap.setView([p.coords.latitude, p.coords.longitude], 15);
             }, null, {enableHighAccuracy: true});
         } else {
             btn.className = "status-circle off"; btn.innerText = "OFF";
+            container.style.display = 'none';
             navigator.geolocation.clearWatch(watchId);
             deleteDoc(doc(db, "activos", auth.currentUser.uid));
-            document.getElementById('miniMapContainer').style.display = 'none';
         }
     };
 
@@ -290,12 +315,8 @@
     window.respondTrip = async (s) => {
         if(s === 'aceptado') {
             await setDoc(doc(db, "viajes", window.activeTripId), { status: 'aceptado' }, { merge: true });
-            document.getElementById('miniMapContainer').style.display = 'block';
-            setTimeout(() => { 
-                miniMap.invalidateSize(); 
-                miniMap.setView(window.pLoc, 16);
-                miniMarker.setLatLng(window.pLoc);
-            }, 300);
+            miniMap.setView(window.pLoc, 16);
+            miniMarker.setLatLng(window.pLoc);
         } else {
             await deleteDoc(doc(db, "viajes", window.activeTripId));
         }
