@@ -41,41 +41,25 @@ border:none;border-radius:8px;
 position:fixed;width:100%;height:100vh;
 background:linear-gradient(135deg,#000,#1c1c1c);
 }
-
 .map-window{
-position:absolute;
-top:5%;
-left:50%;
+position:absolute;top:5%;left:50%;
 transform:translateX(-50%);
-width:95%;
-height:90vh;
-background:#fff;
-border-radius:25px;
-overflow:hidden;
-box-shadow:0 15px 40px rgba(0,0,0,0.5);
-animation:fadeIn 0.4s ease;
+width:95%;height:90vh;
+background:#fff;border-radius:25px;
+overflow:hidden;box-shadow:0 15px 40px rgba(0,0,0,0.5);
 }
-
-@keyframes fadeIn{
-from{opacity:0;transform:translate(-50%,20px);}
-to{opacity:1;transform:translate(-50%,0);}
-}
-
-#map{height:100%;width:100%;}
-
+#map{height:100%;width:100%}
 .top-bar{
 position:absolute;top:0;width:100%;
 display:flex;justify-content:space-between;
 align-items:center;padding:15px;
 background:rgba(0,0,0,0.6);color:white;z-index:3000;
 }
-
 .mode-btn{
 background:white;color:black;
 padding:8px 15px;border-radius:20px;
 border:none;font-size:14px;
 }
-
 .status{
 position:absolute;top:70px;left:50%;
 transform:translateX(-50%);
@@ -83,19 +67,20 @@ background:white;color:black;
 padding:10px 20px;border-radius:20px;
 z-index:3000;
 }
-
 .bottom-panel{
 position:absolute;bottom:0;width:100%;
 background:white;color:black;
 padding:20px;border-radius:25px 25px 0 0;
 z-index:3000;
 }
-
 .main-btn{
 width:100%;margin-top:10px;
 padding:15px;border-radius:30px;
 background:#ffcc00;font-weight:bold;
 border:none;
+}
+.cancel-btn{
+background:red;color:white;
 }
 </style>
 </head>
@@ -125,25 +110,19 @@ border:none;
 
 <!-- MAP -->
 <div id="mapScreen" class="screen">
-
 <div class="map-overlay"></div>
-
 <div class="map-window">
-
 <div class="top-bar">
 <div>🚖 Taxiton</div>
 <button class="mode-btn" onclick="volverModo()">Salir</button>
 </div>
-
 <div id="map"></div>
-
 <div class="status" id="status">Buscando ubicación...</div>
-
 <div class="bottom-panel" id="panel" style="display:none;">
 <div id="tripInfo">Taxis disponibles: <span id="taxiCount">0</span></div>
 <button class="main-btn" onclick="solicitarTaxi()">Solicitar Taxi 🚖</button>
+<button class="main-btn cancel-btn" onclick="cancelarViaje()">Cancelar</button>
 </div>
-
 </div>
 </div>
 
@@ -169,16 +148,17 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 let map,userMarker,markers={},nearestTaxi,routeLine;
+let currentRideId=null;
+let userRole=null;
 
 window.mostrarLogin=()=>{
-document.getElementById("splash").style.display="none";
-document.getElementById("login").style.display="block";
+splash.style.display="none";
+login.style.display="block";
 }
 
 window.login=async()=>{
 try{
-await signInWithEmailAndPassword(auth,
-email.value,password.value);
+await signInWithEmailAndPassword(auth,email.value,password.value);
 login.style.display="none";
 role.style.display="block";
 }catch(e){alert("Crea usuario en Firebase Authentication");}
@@ -207,7 +187,9 @@ status.innerText="📍 Ubicación detectada";
 }
 
 window.modoConductor=()=>{
+userRole="driver";
 iniciarMapa();
+
 navigator.geolocation.watchPosition(async pos=>{
 await setDoc(doc(db,"drivers",auth.currentUser.uid),{
 lat:pos.coords.latitude,
@@ -216,15 +198,26 @@ available:true,
 updatedAt:Date.now()
 });
 });
+
+onSnapshot(collection(db,"rides"),snapshot=>{
+snapshot.docChanges().forEach(change=>{
+const ride=change.doc.data();
+if(ride.status==="waiting" && ride.driverId===null){
+if(confirm("Nuevo viaje 🚖 ¿Aceptar?")){
+aceptarViaje(change.doc.id);
+}
+}
+});
+});
 }
 
 window.modoPasajero=()=>{
+userRole="passenger";
 iniciarMapa();
 panel.style.display="block";
 
 onSnapshot(collection(db,"drivers"),snapshot=>{
 taxiCount.innerText=snapshot.size;
-
 snapshot.docChanges().forEach(change=>{
 const data=change.doc.data();
 const id=change.doc.id;
@@ -240,53 +233,47 @@ icon:L.divIcon({html:"🚖",className:"",iconSize:[30,30]})
 });
 }
 
-window.solicitarTaxi=()=>{
-let min=Infinity;
-
-Object.values(markers).forEach(marker=>{
-const d=map.distance(userMarker.getLatLng(),marker.getLatLng());
-if(d<min){min=d;nearestTaxi=marker;}
+window.solicitarTaxi=async()=>{
+let rideRef=doc(collection(db,"rides"));
+await setDoc(rideRef,{
+passengerId:auth.currentUser.uid,
+driverId:null,
+status:"waiting",
+pickup:{
+lat:userMarker.getLatLng().lat,
+lng:userMarker.getLatLng().lng
+},
+createdAt:Date.now()
 });
-
-if(!nearestTaxi)return;
-
-dibujarRuta();
-moverTaxi();
+currentRideId=rideRef.id;
+status.innerText="🔎 Buscando conductor...";
+escucharEstado();
 }
 
-function dibujarRuta(){
-if(routeLine)map.removeLayer(routeLine);
-routeLine=L.polyline([
-nearestTaxi.getLatLng(),
-userMarker.getLatLng()
-],{color:'green'}).addTo(map);
+async function aceptarViaje(id){
+await setDoc(doc(db,"rides",id),{
+status:"accepted",
+driverId:auth.currentUser.uid
+},{merge:true});
+alert("Viaje aceptado 🚖");
 }
 
-function moverTaxi(){
-const interval=setInterval(()=>{
-const taxiPos=nearestTaxi.getLatLng();
-const userPos=userMarker.getLatLng();
-
-const newLat=taxiPos.lat+(userPos.lat-taxiPos.lat)*0.05;
-const newLng=taxiPos.lng+(userPos.lng-taxiPos.lng)*0.05;
-
-nearestTaxi.setLatLng([newLat,newLng]);
-dibujarRuta();
-
-const dist=map.distance(nearestTaxi.getLatLng(),userPos);
-
-if(dist<10){
-clearInterval(interval);
-mostrarInfo(dist);
+function escucharEstado(){
+onSnapshot(doc(db,"rides",currentRideId),(docSnap)=>{
+if(!docSnap.exists())return;
+let ride=docSnap.data();
+if(ride.status==="accepted"){
+status.innerText="🚖 Conductor en camino";
 }
-},200);
+});
 }
 
-function mostrarInfo(distance){
-const km=(distance/1000).toFixed(2);
-const tarifa=(2+km*0.75).toFixed(2);
-tripInfo.innerHTML=
-`📏 ${km} km<br>💰 $${tarifa}`;
+window.cancelarViaje=async()=>{
+if(!currentRideId)return;
+await setDoc(doc(db,"rides",currentRideId),{
+status:"cancelled"
+},{merge:true});
+status.innerText="❌ Viaje cancelado";
 }
 
 window.volverModo=()=>{
