@@ -3,89 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TAXITON PRO | Wilmer Session</title>
+    <title>TAXITON PRO | Wilmer Maestro</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
-        :root { --p: #3b82f6; --s: #22c55e; --d: #0f172a; --bg: #f8fafc; }
+        :root { --p: #3b82f6; --s: #22c55e; --d: #0f172a; --bg: #f8fafc; --r: #ef4444; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: 'Inter', sans-serif; }
         body, html { height: 100%; background: var(--bg); overflow: hidden; }
 
-        #map { position: absolute; top: 0; width: 100%; height: 40%; z-index: 1; border-bottom: 2px solid #ddd; }
-        
-        .panel { 
-            position: absolute; bottom: 0; width: 100%; height: 60%; 
-            background: white; border-radius: 30px 30px 0 0; padding: 20px; 
-            z-index: 100; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); overflow-y: auto;
-        }
+        /* Mapa y UI */
+        #map { position: absolute; top: 0; width: 100%; height: 45%; z-index: 1; background: #cbd5e1; }
+        .panel { position: absolute; bottom: 0; width: 100%; height: 55%; background: white; border-radius: 30px 30px 0 0; padding: 20px; z-index: 100; box-shadow: 0 -10px 25px rgba(0,0,0,0.1); overflow-y: auto; }
 
-        .btn { width: 100%; padding: 15px; border: none; border-radius: 15px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 16px; }
+        /* Botones */
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 15px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 16px; transition: 0.2s; }
         .btn-p { background: var(--p); color: white; }
         .btn-s { background: var(--s); color: white; }
+        .btn-r { background: var(--r); color: white; }
+        .btn:active { transform: scale(0.98); }
         
+        input { background: #1e293b; border: 1px solid #334155; padding: 14px; border-radius: 12px; color: white; margin-bottom: 12px; width: 100%; }
+        
+        /* Capas de Acceso */
         .overlay { position: fixed; inset: 0; background: var(--d); z-index: 9999; display: flex; flex-direction: column; padding: 30px; color: white; overflow-y: auto; }
         .hidden { display: none !important; }
         
-        input { background: #1e293b; border: 1px solid #334155; padding: 14px; border-radius: 12px; color: white; margin-bottom: 12px; width: 100%; font-size: 14px; }
-        
-        .toggle-link { color: var(--p); text-align: center; margin-top: 15px; cursor: pointer; font-size: 14px; text-decoration: underline; }
-        
-        .profile-card { background: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 20px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; }
-        .profile-img { width: 65px; height: 65px; border-radius: 50%; object-fit: cover; border: 3px solid var(--p); }
+        .role-box { border: 2px solid #334155; padding: 20px; border-radius: 20px; text-align: center; margin-bottom: 15px; cursor: pointer; }
+        .taxi-icon { font-size: 24px; text-align: center; line-height: 30px; background: white; border: 2px solid var(--p); border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
 
-        /* Pantalla de Carga Inicial */
-        #splash { background: var(--d); display: flex; align-items: center; justify-content: center; z-index: 10000; position: fixed; inset: 0; }
+        /* Notificación Flotante para Conductor */
+        .order-alert { position: fixed; top: 20px; left: 20px; right: 20px; background: #1e293b; color: white; padding: 25px; border-radius: 25px; z-index: 10000; border: 3px solid var(--s); box-shadow: 0 15px 40px rgba(0,0,0,0.6); animation: slideIn 0.4s ease-out; }
+        @keyframes slideIn { from { transform: translateY(-100%); } to { transform: translateY(0); } }
     </style>
 </head>
 <body>
 
+<audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2558/2558-preview.mp3" preload="auto"></audio>
+
 <div id="splash" class="overlay">
-    <h2 style="color:var(--p)">TAXITON PRO</h2>
-    <p>Verificando cuenta...</p>
+    <div style="margin: auto; text-align: center;">
+        <h2 style="font-size: 30px; color: var(--p);">TAXITON PRO</h2>
+        <p style="color: #94a3b8;">Verificando credenciales...</p>
+    </div>
 </div>
 
-<div id="registerScreen" class="overlay hidden">
-    <h2 style="text-align:center; margin-bottom:10px;">CREAR PERFIL</h2>
-    <input type="text" id="regName" placeholder="Nombre completo">
-    <input type="text" id="regCar" placeholder="Vehículo (Ej: Kia Rio 2023)">
-    <input type="email" id="regEmail" placeholder="Correo electrónico">
-    <input type="password" id="regPass" placeholder="Contraseña">
-    <button class="btn btn-s" onclick="handleRegister()">REGISTRARME</button>
-    <p class="toggle-link" onclick="switchView('login')">¿Ya tienes cuenta? Inicia sesión</p>
+<div id="tripAlert" class="order-alert hidden">
+    <h2 style="color: var(--s); margin-bottom: 10px;">¡SOLICITUD DE VIAJE! 🚖</h2>
+    <p id="clientName" style="margin-bottom: 20px; font-size: 18px;">Un cliente te espera.</p>
+    <div style="display:flex; gap:10px;">
+        <button class="btn btn-s" onclick="acceptTrip()">ACEPTAR</button>
+        <button class="btn btn-r" onclick="rejectTrip()">RECHAZAR</button>
+    </div>
 </div>
 
-<div id="loginScreen" class="overlay hidden">
-    <h2 style="text-align:center; margin-bottom:10px;">INICIAR SESIÓN</h2>
-    <input type="email" id="logEmail" placeholder="Correo electrónico">
-    <input type="password" id="logPass" placeholder="Contraseña">
-    <button class="btn btn-p" onclick="handleLogin()">ENTRAR</button>
-    <p class="toggle-link" onclick="switchView('register')">Crear una cuenta nueva</p>
+<div id="roleScreen" class="overlay hidden">
+    <h2 style="text-align:center; margin-bottom:30px;">¿CÓMO USARÁS TAXITON?</h2>
+    <div class="role-box" onclick="selectRole('driver')">
+        <h3 style="color:var(--p)">CONDUCTOR</h3>
+        <p style="font-size:12px; color:#94a3b8;">Ofrece tus servicios de transporte</p>
+    </div>
+    <div class="role-box" onclick="selectRole('client')">
+        <h3 style="color:var(--s)">PASAJERO</h3>
+        <p style="font-size:12px; color:#94a3b8;">Busca y solicita taxis cercanos</p>
+    </div>
+</div>
+
+<div id="authScreen" class="overlay hidden">
+    <h2 id="authTitle" style="text-align:center; margin-bottom:20px;">ACCESO</h2>
+    <div id="driverFields" class="hidden">
+        <input type="text" id="uName" placeholder="Nombre completo">
+        <input type="text" id="uCar" placeholder="Modelo de Auto y Color">
+    </div>
+    <input type="email" id="uEmail" placeholder="Correo electrónico">
+    <input type="password" id="uPass" placeholder="Contraseña">
+    <button class="btn btn-p" onclick="processAuth()">ENTRAR AL PANEL</button>
+    <p style="text-align:center; margin-top:20px; cursor:pointer;" onclick="location.reload()">← Cambiar de Rol</p>
 </div>
 
 <div id="map"></div>
-
 <div class="panel">
-    <div class="profile-card">
-        <img src="https://via.placeholder.com/150" id="driverImg" class="profile-img">
-        <div style="flex:1">
-            <b id="driverTitle">Nombre</b><br>
-            <small id="driverCar" style="color:var(--p)"></small>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <b id="displayName" style="font-size:20px;">Cargando...</b><br>
+            <span id="displayRole" style="font-size:12px; font-weight:bold; color:var(--p);">ROL</span>
         </div>
-        <button class="btn" style="width:auto; padding:8px 12px; font-size:12px;" onclick="handleLogout()">CERRAR SESIÓN</button>
+        <button onclick="logout()" style="color:var(--r); background:none; border:none; font-weight:bold;">CERRAR SESIÓN</button>
     </div>
+    <hr style="margin: 15px 0; opacity: 0.1;">
     <div id="mainUI">
-        <div style="text-align:center; padding:20px; color:#94a3b8;">
-            <p>Estado: <b>Conectado y Visible</b></p>
+        <div id="statusBox" style="background:#f1f5f9; padding:20px; border-radius:20px; text-align:center;">
+            <p id="statusText">Buscando señal GPS...</p>
         </div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCw7WoC5AjqnZ2_vagJs5ZklOZt3b4ZRtg",
@@ -100,88 +117,141 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // CONFIGURAR PERSISTENCIA LOCAL (Para recordar al usuario)
+    let selectedRole = '', map, userLoc, myData, taxiMarkers = {};
+
     setPersistence(auth, browserLocalPersistence);
 
-    let map, userLoc;
-
-    // MONITOR DE SESIÓN: Revisa si hay alguien logueado al abrir la app
+    // PERSISTENCIA Y AUTO-LOGIN
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            const d = await getDoc(doc(db, "users", user.uid));
-            if (d.exists()) {
-                startDriverApp(d.data());
-            } else {
-                switchView('register');
+            const docSnap = await getDoc(doc(db, "users", user.uid));
+            if (docSnap.exists()) {
+                myData = docSnap.data();
+                showApp(myData);
             }
         } else {
             document.getElementById('splash').classList.add('hidden');
-            switchView('login');
+            document.getElementById('roleScreen').classList.remove('hidden');
         }
     });
 
-    window.switchView = (view) => {
-        document.getElementById('splash').classList.add('hidden');
-        if(view === 'login') {
-            document.getElementById('registerScreen').classList.remove('hidden');
-            document.getElementById('loginScreen').classList.remove('hidden'); // Ajuste visual
-            document.getElementById('registerScreen').classList.add('hidden');
-        } else {
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('registerScreen').classList.remove('hidden');
+    window.selectRole = (role) => {
+        selectedRole = role;
+        document.getElementById('roleScreen').classList.add('hidden');
+        document.getElementById('authScreen').classList.remove('hidden');
+        if (role === 'driver') {
+            document.getElementById('authTitle').innerText = "REGISTRO CONDUCTOR";
+            document.getElementById('driverFields').classList.remove('hidden');
         }
     };
 
-    window.handleRegister = async () => {
-        const email = document.getElementById('regEmail').value;
-        const pass = document.getElementById('regPass').value;
-        const name = document.getElementById('regName').value;
+    window.processAuth = async () => {
+        const email = document.getElementById('uEmail').value;
+        const pass = document.getElementById('uPass').value;
+        if(!email || !pass) return alert("Llena todos los campos");
+
         try {
-            const userCred = await createUserWithEmailAndPassword(auth, email, pass);
-            const driverData = { name, car: document.getElementById('regCar').value, role: 'driver' };
-            await setDoc(doc(db, "users", userCred.user.uid), driverData);
-            // El onAuthStateChanged se encargará del resto
+            if (selectedRole === 'driver') {
+                const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+                myData = { name: document.getElementById('uName').value, car: document.getElementById('uCar').value, role: 'driver', uid: userCred.user.uid };
+                await setDoc(doc(db, "users", userCred.user.uid), myData);
+            } else {
+                try {
+                    const userCred = await signInWithEmailAndPassword(auth, email, pass);
+                    const d = await getDoc(doc(db, "users", userCred.user.uid));
+                    myData = d.data();
+                } catch {
+                    const userCred = await createUserWithEmailAndPassword(auth, email, pass);
+                    myData = { name: 'Pasajero', role: 'client', uid: userCred.user.uid };
+                    await setDoc(doc(db, "users", userCred.user.uid), myData);
+                }
+            }
+            showApp(myData);
         } catch (e) { alert("Error: " + e.message); }
     };
 
-    window.handleLogin = async () => {
-        const email = document.getElementById('logEmail').value;
-        const pass = document.getElementById('logPass').value;
-        try {
-            await signInWithEmailAndPassword(auth, email, pass);
-        } catch (e) { alert("Credenciales incorrectas"); }
-    };
-
-    window.handleLogout = async () => {
-        await signOut(auth);
-        location.reload();
-    };
-
-    function startDriverApp(data) {
+    function showApp(data) {
         document.getElementById('splash').classList.add('hidden');
-        document.getElementById('loginScreen').classList.add('hidden');
-        document.getElementById('registerScreen').classList.add('hidden');
-        
-        document.getElementById('driverTitle').innerText = data.name;
-        document.getElementById('driverCar').innerText = data.car;
+        document.getElementById('authScreen').classList.add('hidden');
+        document.getElementById('displayName').innerText = data.name;
+        document.getElementById('displayRole').innerText = data.role === 'driver' ? 'CONDUCTOR ACTIVADO' : 'PASAJERO';
 
         navigator.geolocation.getCurrentPosition(pos => {
             userLoc = [pos.coords.latitude, pos.coords.longitude];
-            initMap(userLoc);
-            setDoc(doc(db, "taxis", auth.currentUser.uid), {
-                name: data.name, car: data.car, lat: userLoc[0], lng: userLoc[1], status: 'online'
-            }, {merge: true});
+            if (!map) {
+                map = L.map('map', { zoomControl: false }).setView(userLoc, 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                L.circle(userLoc, {radius: 50, color: '#3b82f6', fillOpacity: 0.2}).addTo(map);
+                setTimeout(() => map.invalidateSize(), 800);
+            }
+
+            if (data.role === 'driver') {
+                document.getElementById('statusText').innerHTML = "<b style='color:green'>● EN LÍNEA</b><br>Esperando solicitudes de pasajeros...";
+                setDoc(doc(db, "taxis", auth.currentUser.uid), { name: data.name, car: data.car, lat: userLoc[0], lng: userLoc[1], status: 'online' }, { merge: true });
+                listenForTrips();
+            } else {
+                document.getElementById('statusText').innerText = "Toca un taxi 🚕 en el mapa para solicitarlo.";
+                monitorTaxis();
+            }
+        }, () => alert("Activa el GPS para usar la app"));
+    }
+
+    // PASAJERO: Ver Taxis
+    function monitorTaxis() {
+        onSnapshot(collection(db, "taxis"), (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                const taxi = change.doc.data();
+                const id = change.doc.id;
+                if (taxi.status === 'online') {
+                    if (taxiMarkers[id]) taxiMarkers[id].setLatLng([taxi.lat, taxi.lng]);
+                    else {
+                        taxiMarkers[id] = L.marker([taxi.lat, taxi.lng], {
+                            icon: L.divIcon({ html: '🚕', className: 'taxi-icon', iconSize: [30, 30] })
+                        }).addTo(map).on('click', () => {
+                            if(confirm(`¿Solicitar taxi de ${taxi.name} (${taxi.car})?`)) requestTaxi(id);
+                        });
+                    }
+                }
+            });
         });
     }
 
-    function initMap(coords) {
-        if(!map) {
-            map = L.map('map', { zoomControl: false }).setView(coords, 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            L.marker(coords).addTo(map);
-            setTimeout(() => map.invalidateSize(), 800);
-        }
+    async function requestTaxi(taxiId) {
+        await setDoc(doc(db, "trips", taxiId), {
+            clientName: myData.name,
+            lat: userLoc[0],
+            lng: userLoc[1],
+            status: 'pending'
+        });
+        alert("¡Solicitud enviada! Mantente en el mapa.");
     }
+
+    // CONDUCTOR: Recibir Viajes
+    function listenForTrips() {
+        onSnapshot(doc(db, "trips", auth.currentUser.uid), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().status === 'pending') {
+                const trip = docSnap.data();
+                document.getElementById('tripAlert').classList.remove('hidden');
+                document.getElementById('clientName').innerText = `${trip.clientName} está pidiendo un viaje ahora.`;
+                document.getElementById('alertSound').play().catch(()=> console.log("Habilitar sonido"));
+            } else {
+                document.getElementById('tripAlert').classList.add('hidden');
+            }
+        });
+    }
+
+    window.acceptTrip = async () => {
+        await updateDoc(doc(db, "trips", auth.currentUser.uid), { status: 'accepted' });
+        alert("Viaje aceptado. ¡En marcha!");
+        document.getElementById('tripAlert').classList.add('hidden');
+    };
+
+    window.rejectTrip = async () => {
+        await deleteDoc(doc(db, "trips", auth.currentUser.uid));
+        document.getElementById('tripAlert').classList.add('hidden');
+    };
+
+    window.logout = () => signOut(auth).then(() => location.reload());
 </script>
 </body>
 </html>
