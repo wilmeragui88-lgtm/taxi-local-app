@@ -1,162 +1,228 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Taxiton Pro Real</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxiton Pro - 2026</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f1f5f9; height: 100vh; overflow: hidden; }
 
-<style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
-body{background:#f1f5f9;height:100vh;overflow:hidden}
-header{background:#111827;color:white;padding:15px;text-align:center;font-weight:bold}
-#map{height:40vh}
-.panel{height:60vh;background:white;border-radius:25px 25px 0 0;padding:20px;overflow:auto}
-.taxi-card{background:#f9fafb;padding:15px;border-radius:15px;margin-bottom:10px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
-.status{margin-top:10px;font-weight:bold}
-.login{position:absolute;top:0;left:0;right:0;bottom:0;background:#0f172a;color:white;display:flex;flex-direction:column;justify-content:center;padding:30px;z-index:2000}
-input{padding:12px;margin:10px 0;border-radius:10px;border:none}
-button{padding:10px 15px;border:none;border-radius:10px;background:#22c55e;color:white;font-weight:bold}
-</style>
+        /* Pantalla de Login */
+        .login {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: #0f172a; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 30px;
+            z-index: 2000; color: white; transition: opacity 0.5s;
+        }
+        .login input {
+            width: 100%; max-width: 300px; padding: 12px; margin: 10px 0;
+            border-radius: 8px; border: none; font-size: 16px;
+        }
+        .login button {
+            width: 100%; max-width: 300px; padding: 12px; background: #22c55e;
+            color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
+        }
+
+        /* Interfaz Principal */
+        header { background: #111827; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 1.2rem; }
+        #map { height: 45vh; width: 100%; }
+        
+        .panel {
+            height: 55vh; background: white; border-radius: 25px 25px 0 0;
+            padding: 20px; overflow-y: auto; box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+            position: relative; z-index: 1000;
+        }
+
+        .taxi-card {
+            background: #f8fafc; padding: 15px; border-radius: 12px;
+            margin-bottom: 12px; display: flex; justify-content: space-between;
+            align-items: center; border: 1px solid #e2e8f0; transition: 0.3s;
+        }
+        .taxi-card:hover { border-color: #3b82f6; background: #eff6ff; }
+        
+        .info h4 { color: #1e293b; margin-bottom: 4px; }
+        .distance { font-size: 14px; color: #64748b; }
+        
+        .btn-request {
+            padding: 10px 18px; border: none; border-radius: 8px;
+            background: #3b82f6; color: white; font-weight: 600; cursor: pointer;
+        }
+        
+        /* Icono de Taxi en el Mapa */
+        .taxi-icon { font-size: 24px; text-align: center; line-height: 1; }
+    </style>
 </head>
 <body>
 
 <div id="loginScreen" class="login">
-<h2>🚖 TAXITON PRO</h2>
-<input type="email" id="email" placeholder="Correo">
-<input type="password" id="password" placeholder="Contraseña">
-<button onclick="login()">Entrar</button>
+    <h2 style="margin-bottom: 20px;">🚖 TAXITON PRO</h2>
+    <input type="email" id="email" placeholder="Correo electrónico" value="">
+    <input type="password" id="password" placeholder="Contraseña" value="">
+    <button id="btnLogin">Ingresar</button>
+    <p id="errorMsg" style="color: #ef4444; margin-top: 10px; font-size: 14px;"></p>
 </div>
 
 <header>🚖 TAXITON PRO</header>
+
 <div id="map"></div>
 
 <div class="panel">
-<h3>Taxis cercanos</h3>
-<div id="taxiList"></div>
-<div class="status" id="rideStatus"></div>
+    <h3 style="margin-bottom: 15px; color: #1e293b;">Taxis disponibles</h3>
+    <div id="taxiList">
+        <p style="color: #94a3b8; text-align: center;">Buscando unidades cercanas...</p>
+    </div>
 </div>
 
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
 <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } 
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp } 
+        from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    // Configuración (Asegúrate de configurar tus reglas en Firebase)
+    const firebaseConfig = {
+        apiKey: "AIzaSyCw7WoC5AjqnZ2_vagJs5ZklOZt3b4ZRtg",
+        authDomain: "taxiton-eba22.firebaseapp.com",
+        projectId: "taxiton-eba22",
+        storageBucket: "taxiton-eba22.appspot.com",
+        messagingSenderId: "1091576841981",
+        appId: "1:1091576841981:web:1dd7bbefb518580fb76094"
+    };
 
-const firebaseConfig = {
-apiKey: "AIzaSyCw7WoC5AjqnZ2_vagJs5ZklOZt3b4ZRtg",
-authDomain: "taxiton-eba22.firebaseapp.com",
-projectId: "taxiton-eba22",
-storageBucket: "taxiton-eba22.appspot.com",
-messagingSenderId: "1091576841981",
-appId: "1:1091576841981:web:1dd7bbefb518580fb76094"
-};
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+    let map, userLocation;
+    let taxiMarkers = {}; // Para rastrear y actualizar marcadores individualmente
 
-let map;
-let userLocation;
-let currentRideId = null;
+    // --- LÓGICA DE AUTENTICACIÓN ---
+    document.getElementById("btnLogin").onclick = async () => {
+        const email = document.getElementById("email").value;
+        const pass = document.getElementById("password").value;
+        const errorMsg = document.getElementById("errorMsg");
 
-// LOGIN
-window.login = async ()=>{
-await signInWithEmailAndPassword(auth,
-document.getElementById("email").value,
-document.getElementById("password").value
-);
+        try {
+            await signInWithEmailAndPassword(auth, email, pass);
+            // El cambio de estado lo maneja onAuthStateChanged
+        } catch (error) {
+            errorMsg.innerText = "Error: Credenciales incorrectas.";
+        }
+    };
 
-document.getElementById("loginScreen").style.display="none";
-initMap();
-};
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById("loginScreen").style.opacity = "0";
+            setTimeout(() => {
+                document.getElementById("loginScreen").style.display = "none";
+                initApp();
+            }, 500);
+        }
+    });
 
-// MAPA
-function initMap(){
-navigator.geolocation.getCurrentPosition(position=>{
-userLocation=[position.coords.latitude,position.coords.longitude];
+    // --- INICIALIZACIÓN ---
+    function initApp() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                userLocation = [position.coords.latitude, position.coords.longitude];
+                
+                // Inicializar Mapa
+                map = L.map("map").setView(userLocation, 15);
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-map=L.map("map").setView(userLocation,15);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-L.marker(userLocation).addTo(map).bindPopup("Tu ubicación").openPopup();
+                // Marcador Usuario
+                L.marker(userLocation).addTo(map).bindPopup("Tu ubicación").openPopup();
 
-listenTaxis();
-});
-}
+                escucharTaxis();
+            }, () => alert("Por favor activa el GPS"));
+        }
+    }
 
-// ESCUCHAR TAXIS
-function listenTaxis(){
-onSnapshot(collection(db,"taxis"),snapshot=>{
-let taxiArray=[];
-snapshot.forEach(doc=>{
-let data=doc.data();
-let dist=getDistance(userLocation,[data.lat,data.lng]);
-taxiArray.push({id:doc.id,lat:data.lat,lng:data.lng,distance:dist});
-});
-taxiArray.sort((a,b)=>a.distance-b.distance);
-renderTaxiList(taxiArray);
-});
-}
+    // --- ESCUCHAR FIREBASE ---
+    function escucharTaxis() {
+        onSnapshot(collection(db, "taxis"), snapshot => {
+            let taxis = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const dist = calcularDistancia(userLocation[0], userLocation[1], data.lat, data.lng);
+                taxis.push({ id: doc.id, ...data, distance: dist });
+            });
 
-// RENDER LISTA
-function renderTaxiList(taxis){
-let container=document.getElementById("taxiList");
-container.innerHTML="";
-taxis.forEach(taxi=>{
-let card=document.createElement("div");
-card.className="taxi-card";
-card.innerHTML=`
-<strong>🚕 Taxi</strong><br>
-Distancia: ${taxi.distance.toFixed(2)} km
-`;
-card.onclick=()=>requestRide(taxi.id);
-container.appendChild(card);
-});
-}
+            // Ordenar por cercanía
+            taxis.sort((a, b) => a.distance - b.distance);
+            renderizarInterfaz(taxis);
+        });
+    }
 
-// CREAR VIAJE REAL
-async function requestRide(taxiId){
+    // --- RENDERIZADO ---
+    function renderizarInterfaz(taxis) {
+        const container = document.getElementById("taxiList");
+        container.innerHTML = "";
 
-currentRideId = auth.currentUser.uid;
+        // Limpiar marcadores viejos que ya no están en la lista
+        Object.keys(taxiMarkers).forEach(id => {
+            if (!taxis.find(t => t.id === id)) {
+                map.removeLayer(taxiMarkers[id]);
+                delete taxiMarkers[id];
+            }
+        });
 
-await setDoc(doc(db,"rides",currentRideId),{
-passengerId:auth.currentUser.uid,
-taxiId:taxiId,
-status:"pendiente",
-lat:userLocation[0],
-lng:userLocation[1]
-});
+        taxis.forEach(taxi => {
+            // 1. Actualizar o Crear Marcador en Mapa
+            const pos = [taxi.lat, taxi.lng];
+            if (taxiMarkers[taxi.id]) {
+                taxiMarkers[taxi.id].setLatLng(pos);
+            } else {
+                taxiMarkers[taxi.id] = L.marker(pos, {
+                    icon: L.divIcon({ html: '🚕', className: 'taxi-icon', iconSize: [30, 30] })
+                }).addTo(map).bindPopup(`Taxi #${taxi.id.substring(0,4)}`);
+            }
 
-document.getElementById("rideStatus").innerText="🟡 Solicitud enviada...";
+            // 2. Crear Tarjeta
+            const card = document.createElement("div");
+            card.className = "taxi-card";
+            card.innerHTML = `
+                <div class="info">
+                    <h4>Unidad #${taxi.id.substring(0,4)}</h4>
+                    <p class="distance">A ${taxi.distance.toFixed(2)} km de ti</p>
+                </div>
+                <button class="btn-request" onclick="solicitarViaje('${taxi.id}')">Solicitar</button>
+            `;
+            container.appendChild(card);
+        });
+    }
 
-listenRide();
-}
+    // --- UTILIDADES ---
+    window.solicitarViaje = async (taxiId) => {
+        try {
+            await addDoc(collection(db, "solicitudes"), {
+                pasajeroId: auth.currentUser.uid,
+                taxiId: taxiId,
+                status: "pendiente",
+                timestamp: serverTimestamp()
+            });
+            alert("¡Solicitud enviada! Espera a que el conductor acepte. 🚖");
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
-// ESCUCHAR ESTADO DEL VIAJE
-function listenRide(){
-onSnapshot(doc(db,"rides",currentRideId),docSnap=>{
-if(docSnap.exists()){
-let data=docSnap.data();
-document.getElementById("rideStatus").innerText=
-"Estado: "+data.status.toUpperCase();
-}
-});
-}
-
-// DISTANCIA
-function getDistance(a,b){
-let R=6371;
-let dLat=(b[0]-a[0])*Math.PI/180;
-let dLon=(b[1]-a[1])*Math.PI/180;
-let lat1=a[0]*Math.PI/180;
-let lat2=b[0]*Math.PI/180;
-let x=Math.sin(dLat/2)**2+
-Math.sin(dLon/2)**2*Math.cos(lat1)*Math.cos(lat2);
-return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
-}
-
+    function calcularDistancia(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
 </script>
 </body>
 </html>
