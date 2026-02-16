@@ -29,7 +29,6 @@
         #splash {
             position: fixed; inset: 0; background: var(--dark); z-index: 20000;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.5s ease;
         }
         .loader {
             width: 60px; height: 60px; border: 5px solid #1e293b; border-top: 5px solid var(--primary);
@@ -68,18 +67,16 @@
             text-transform: uppercase; margin-top: 15px;
         }
 
-        /* CONFIGURACIÓN DE MAPAS - AJUSTE PARA GIRO GPS */
+        /* CONFIGURACIÓN DE MAPAS */
         #mapContainer, #miniMapContainer {
             flex: 1; position: relative; overflow: hidden; background: #000;
         }
 
-        /* Para que el mapa no muestre bordes negros al girar, ampliamos el canvas */
         #map, #miniMap { 
             height: 250%; width: 250%; position: absolute; top: -75%; left: -75%;
-            transition: transform 0.4s linear;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* CONTROLES FLOTANTES */
         .map-controls {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
             display: flex; flex-direction: column; gap: 10px;
@@ -259,7 +256,6 @@
         }
     });
 
-    // PASAJERO CON OPCIONES DE MAPA
     function startPassenger() {
         document.getElementById('passengerApp').style.display = 'flex';
         navigator.geolocation.getCurrentPosition(p => {
@@ -302,7 +298,6 @@
         document.getElementById('pPanel').innerHTML = "<h2 style='text-align:center;'>Esperando...</h2>";
     };
 
-    // TAXISTA CON CORRECCIÓN DE GIRO GPS
     async function startTaxi() {
         document.getElementById('taxiApp').style.display = 'flex';
         miniMap = L.map('miniMap', {zoomControl: false}).setView([0,0], 18);
@@ -329,7 +324,6 @@
             watchId = navigator.geolocation.watchPosition(p => {
                 const c = [p.coords.latitude, p.coords.longitude];
                 
-                // CORRECCIÓN: Rotación GPS siempre hacia arriba (Track Up)
                 if(isRotating && lastPos) {
                     const h = getHeading(lastPos, c);
                     document.getElementById('miniMap').style.transform = `rotate(${-h}deg)`;
@@ -337,7 +331,7 @@
                 
                 window.myLastPos = c; 
                 myTaxiMarker.setLatLng(c); 
-                miniMap.setView(c, miniMap.getZoom(), {animate: true}); // Centrado fluido
+                miniMap.setView(c, miniMap.getZoom(), {animate: true});
                 lastPos = c;
                 setDoc(doc(db, "activos", auth.currentUser.uid), { nombre: "Wil", lat: c[0], lng: c[1] });
             }, null, {enableHighAccuracy: true, maximumAge: 0});
@@ -349,38 +343,38 @@
         }
     };
 
-    // FUNCIÓN DE CAMBIO DE ESTILO PARA AMBOS PANELES
     window.changeMapStyle = (style, target) => {
         const targetMap = target === 'map' ? map : miniMap;
         const currentLayer = target === 'map' ? currentPLayer : currentTLayer;
-        
         targetMap.removeLayer(currentLayer);
         const newLayer = L.tileLayer(mapStyles[style]).addTo(targetMap);
-        
         if(target === 'map') currentPLayer = newLayer; else currentTLayer = newLayer;
-        
-        // Actualizar UI de botones
         event.currentTarget.parentElement.querySelectorAll('.btn-map-opt').forEach(b => b.classList.remove('active'));
         event.currentTarget.classList.add('active');
     };
 
+    // CORRECCIÓN AQUÍ: Evitar que se fije hacia abajo
     window.toggleRotation = () => {
         isRotating = !isRotating;
         const btn = document.getElementById('rotateToggle');
         btn.classList.toggle('active', isRotating);
-        if(!isRotating) document.getElementById('miniMap').style.transform = `rotate(0deg)`;
-        hablar(isRotating ? "GPS Orientado" : "Mapa fijo");
+        
+        const el = document.getElementById('miniMap');
+        if(!isRotating) {
+            // Si fijamos el mapa, forzamos rotación 0 (Norte arriba)
+            el.style.transform = `rotate(0deg)`;
+            hablar("Mapa fijo al Norte");
+        } else {
+            hablar("GPS Orientado");
+        }
     };
 
     window.respondTrip = async (s) => {
         await updateDoc(doc(db, "viajes", window.activeTripId), { status: 'aceptado' });
         document.getElementById('tripAlert').style.display = 'none';
         document.getElementById('finishBtn').style.display = 'block';
-        
-        // CORRECCIÓN: Acercamiento automático al aceptar
         miniMap.setZoom(19); 
         hablar("Aceptado. Pasajero notificado.");
-        
         if(routingControl) miniMap.removeControl(routingControl);
         routingControl = L.Routing.control({
             waypoints: [L.latLng(window.myLastPos[0], window.myLastPos[1]), L.latLng(window.pLoc[0], window.pLoc[1])],
