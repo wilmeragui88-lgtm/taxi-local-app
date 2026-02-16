@@ -25,7 +25,6 @@
         
         body { background: var(--dark); height: 100vh; overflow: hidden; color: var(--text); position: fixed; width: 100%; }
 
-        /* Pantalla de Carga */
         #splash {
             position: fixed; inset: 0; background: var(--dark); z-index: 20000;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -67,12 +66,10 @@
             text-transform: uppercase; margin-top: 15px;
         }
 
-        /* CONFIGURACIÓN DE MAPAS */
         #mapContainer, #miniMapContainer {
             flex: 1; position: relative; overflow: hidden; background: #000;
         }
 
-        /* Dimensiones optimizadas para evitar bordes blancos en giro */
         #map, #miniMap { 
             height: 250%; width: 250%; position: absolute; top: -75%; left: -75%;
             transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -193,7 +190,7 @@
     const auth = getAuth(firebaseApp);
     const db = getFirestore(firebaseApp);
 
-    let role = 'pasajero', map, miniMap, userPos, watchId, routingControl, taxiMarkers = {}, myTaxiMarker;
+    let role = 'pasajero', map, miniMap, userPos, watchId, routingControl, taxiMarkers = {}, myTaxiMarker, passengerMarker;
     let lastPos = null, isRotating = true, currentPLayer, currentTLayer;
 
     const mapStyles = {
@@ -325,12 +322,10 @@
             watchId = navigator.geolocation.watchPosition(p => {
                 const c = [p.coords.latitude, p.coords.longitude];
                 
-                // Si el giro está activo, calculamos heading y rotamos el div del mapa
                 if(isRotating && lastPos) {
                     const h = getHeading(lastPos, c);
                     document.getElementById('miniMap').style.transform = `rotate(${-h}deg)`;
                 } else if (!isRotating) {
-                    // Si no está rotando, forzamos que el div esté siempre derecho (0deg)
                     document.getElementById('miniMap').style.transform = `rotate(0deg)`;
                 }
                 
@@ -362,10 +357,8 @@
         isRotating = !isRotating;
         const btn = document.getElementById('rotateToggle');
         btn.classList.toggle('active', isRotating);
-        
         const el = document.getElementById('miniMap');
         if(!isRotating) {
-            // Acción inmediata: Enderezar mapa al Norte y hablar
             el.style.transform = `rotate(0deg)`;
             hablar("Mapa fijo al Norte");
         } else {
@@ -373,18 +366,41 @@
         }
     };
 
+    // ACTUALIZACIÓN: MARCACIÓN DE DIRECCIÓN EN GPS AL ACEPTAR
     window.respondTrip = async (s) => {
         await updateDoc(doc(db, "viajes", window.activeTripId), { status: 'aceptado' });
         document.getElementById('tripAlert').style.display = 'none';
         document.getElementById('finishBtn').style.display = 'block';
-        miniMap.setZoom(19); 
-        hablar("Aceptado. Pasajero notificado.");
-        if(routingControl) miniMap.removeControl(routingControl);
-        routingControl = L.Routing.control({
-            waypoints: [L.latLng(window.myLastPos[0], window.myLastPos[1]), L.latLng(window.pLoc[0], window.pLoc[1])],
-            createMarker: () => null,
-            lineOptions: { styles: [{ color: '#2ecc71', weight: 8 }] }
+        
+        hablar("Aceptado. Calculando ruta hacia el cliente.");
+
+        // 1. Marcar el punto del pasajero con un icono distintivo
+        if(passengerMarker) miniMap.removeLayer(passengerMarker);
+        passengerMarker = L.marker([window.pLoc[0], window.pLoc[1]], {
+            icon: L.divIcon({html: '👤', iconSize: [30,30], className: 'p-marker'})
         }).addTo(miniMap);
+
+        // 2. Crear la ruta visual por las calles (GPS)
+        if(routingControl) miniMap.removeControl(routingControl);
+        
+        routingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(window.myLastPos[0], window.myLastPos[1]),
+                L.latLng(window.pLoc[0], window.pLoc[1])
+            ],
+            createMarker: () => null, // No duplicar marcadores
+            routeWhileDragging: false,
+            addWaypoints: false,
+            fitSelectedRoutes: true, // Ajustar zoom para ver toda la ruta al inicio
+            lineOptions: {
+                styles: [{ color: '#3498db', opacity: 0.8, weight: 10 }]
+            }
+        }).addTo(miniMap);
+
+        // 3. Ajustar zoom para el inicio del viaje
+        setTimeout(() => {
+            miniMap.setZoom(17);
+        }, 1500);
     }
 
     window.finishTrip = async () => {
