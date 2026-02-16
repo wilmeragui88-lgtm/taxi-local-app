@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Wilstaxtion Pro 2026 - GPS Master</title>
+    <title>Wilstaxtion Pro 2026 - Real-Time GPS</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#070b14">
@@ -25,6 +25,7 @@
         
         body { background: var(--dark); height: 100vh; overflow: hidden; color: var(--text); position: fixed; width: 100%; }
 
+        /* Pantalla de Carga */
         #splash {
             position: fixed; inset: 0; background: var(--dark); z-index: 20000;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -66,6 +67,7 @@
             text-transform: uppercase; margin-top: 15px;
         }
 
+        /* CONFIGURACIÓN DE MAPAS */
         #mapContainer, #miniMapContainer {
             flex: 1; position: relative; overflow: hidden; background: #000;
         }
@@ -108,6 +110,8 @@
         }
 
         .leaflet-routing-container { display: none !important; }
+        .t-ico { font-size: 25px; filter: drop-shadow(0 0 5px gold); }
+        .p-marker { font-size: 25px; filter: drop-shadow(0 0 5px cyan); }
     </style>
 </head>
 <body>
@@ -256,43 +260,58 @@
 
     function startPassenger() {
         document.getElementById('passengerApp').style.display = 'flex';
-        navigator.geolocation.getCurrentPosition(p => {
+        // Cambio clave: El pasajero usa watchPosition para que Wil lo vea moverse
+        navigator.geolocation.watchPosition(p => {
             userPos = [p.coords.latitude, p.coords.longitude];
-            map = L.map('map', {zoomControl: false}).setView(userPos, 17);
-            currentPLayer = L.tileLayer(mapStyles.night).addTo(map);
-            L.circleMarker(userPos, {radius: 8, color: '#3498db', fillOpacity: 1}).addTo(map);
+            if(!map) {
+                map = L.map('map', {zoomControl: false}).setView(userPos, 17);
+                currentPLayer = L.tileLayer(mapStyles.night).addTo(map);
+                L.circleMarker(userPos, {radius: 8, color: '#3498db', fillOpacity: 1}).addTo(map);
+            }
+            // Actualizar ubicación en el viaje activo si existe
+            if(window.activeTripId) {
+                updateDoc(doc(db, "viajes", window.activeTripId), { lat: userPos[0], lng: userPos[1] });
+            }
+        });
 
-            onSnapshot(collection(db, "activos"), snap => {
-                Object.values(taxiMarkers).forEach(m => map.removeLayer(m));
-                taxiMarkers = {};
-                const list = document.getElementById('taxiList'); list.innerHTML = "";
-                snap.forEach(d => {
-                    const t = d.data();
+        onSnapshot(collection(db, "activos"), snap => {
+            snap.forEach(d => {
+                const t = d.data();
+                if(!taxiMarkers[d.id]) {
                     taxiMarkers[d.id] = L.marker([t.lat, t.lng], {icon: L.divIcon({html: '🚕', className:'t-ico'})}).addTo(map);
-                    const card = document.createElement('div');
-                    card.style = "background:#1f2937; padding:15px; border-radius:15px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;";
-                    card.innerHTML = `<div><b>${t.nombre}</b></div><button onclick="requestRide('${d.id}', '${t.nombre}')" style="background:var(--primary); border:none; padding:10px 15px; border-radius:10px; font-weight:bold;">PEDIR</button>`;
-                    list.appendChild(card);
-                });
+                } else {
+                    taxiMarkers[d.id].setLatLng([t.lat, t.lng]);
+                }
             });
+            // Limpieza de lista en el panel
+            const list = document.getElementById('taxiList'); list.innerHTML = "";
+            snap.forEach(d => {
+                const t = d.data();
+                const card = document.createElement('div');
+                card.style = "background:#1f2937; padding:15px; border-radius:15px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;";
+                card.innerHTML = `<div><b>${t.nombre}</b></div><button onclick="requestRide('${d.id}', '${t.nombre}')" style="background:var(--primary); border:none; padding:10px 15px; border-radius:10px; font-weight:bold;">PEDIR</button>`;
+                list.appendChild(card);
+            });
+        });
 
-            onSnapshot(query(collection(db, "viajes"), where("pasajeroId", "==", auth.currentUser.uid)), snap => {
-                snap.forEach(d => {
-                    if(d.data().status === 'aceptado') {
-                        hablar("Wil ya aceptó, va en camino.");
-                        document.getElementById('pPanel').innerHTML = "<h2 style='text-align:center; color:var(--primary)'>¡WIL EN CAMINO!</h2>";
-                    }
-                });
+        onSnapshot(query(collection(db, "viajes"), where("pasajeroId", "==", auth.currentUser.uid)), snap => {
+            snap.forEach(d => {
+                if(d.data().status === 'aceptado') {
+                    window.activeTripId = d.id;
+                    hablar("Wil ya aceptó, va en camino.");
+                    document.getElementById('pPanel').innerHTML = "<h2 style='text-align:center; color:var(--primary)'>¡WIL EN CAMINO!</h2>";
+                }
             });
         });
     }
 
     window.requestRide = async (taxiId, taxiName) => {
         hablar(`Llamando a ${taxiName}`);
-        await addDoc(collection(db, "viajes"), { 
+        const docRef = await addDoc(collection(db, "viajes"), { 
             pasajeroId: auth.currentUser.uid, pasajeroNombre: localStorage.getItem('pName'), 
             taxiId, status: 'pendiente', lat: userPos[0], lng: userPos[1], timestamp: serverTimestamp() 
         });
+        window.activeTripId = docRef.id;
         document.getElementById('pPanel').innerHTML = "<h2 style='text-align:center;'>Esperando...</h2>";
     };
 
@@ -302,13 +321,20 @@
         currentTLayer = L.tileLayer(mapStyles.night).addTo(miniMap);
         myTaxiMarker = L.marker([0,0], {icon: L.divIcon({html: '🚀', iconSize:[30,30]})}).addTo(miniMap);
         
-        onSnapshot(query(collection(db, "viajes"), where("taxiId", "==", auth.currentUser.uid), where("status", "==", "pendiente")), snap => {
-            if (!snap.empty) {
-                const v = snap.docs[0]; window.activeTripId = v.id; window.pLoc = [v.data().lat, v.data().lng];
-                document.getElementById('clientName').innerText = v.data().pasajeroNombre;
-                document.getElementById('tripAlert').style.display = 'block';
-                hablar(`Nuevo pedido de ${v.data().pasajeroNombre}`);
-            }
+        // Escucha constante del viaje para ver al pasajero moverse
+        onSnapshot(query(collection(db, "viajes"), where("taxiId", "==", auth.currentUser.uid)), snap => {
+            snap.forEach(v => {
+                const data = v.data();
+                if(data.status === 'pendiente') {
+                    window.activeTripId = v.id; window.pLoc = [data.lat, data.lng];
+                    document.getElementById('clientName').innerText = data.pasajeroNombre;
+                    document.getElementById('tripAlert').style.display = 'block';
+                }
+                // Si el pasajero camina mientras Wil va en camino, el icono se mueve solo
+                if(data.status === 'aceptado' && passengerMarker) {
+                    passengerMarker.setLatLng([data.lat, data.lng]);
+                }
+            });
         });
     }
 
@@ -321,14 +347,12 @@
             setTimeout(() => miniMap.invalidateSize(), 300);
             watchId = navigator.geolocation.watchPosition(p => {
                 const c = [p.coords.latitude, p.coords.longitude];
-                
                 if(isRotating && lastPos) {
                     const h = getHeading(lastPos, c);
                     document.getElementById('miniMap').style.transform = `rotate(${-h}deg)`;
                 } else if (!isRotating) {
                     document.getElementById('miniMap').style.transform = `rotate(0deg)`;
                 }
-                
                 window.myLastPos = c; 
                 myTaxiMarker.setLatLng(c); 
                 miniMap.setView(c, miniMap.getZoom(), {animate: true});
@@ -349,58 +373,32 @@
         targetMap.removeLayer(currentLayer);
         const newLayer = L.tileLayer(mapStyles[style]).addTo(targetMap);
         if(target === 'map') currentPLayer = newLayer; else currentTLayer = newLayer;
-        event.currentTarget.parentElement.querySelectorAll('.btn-map-opt').forEach(b => b.classList.remove('active'));
-        event.currentTarget.classList.add('active');
     };
 
     window.toggleRotation = () => {
         isRotating = !isRotating;
-        const btn = document.getElementById('rotateToggle');
-        btn.classList.toggle('active', isRotating);
-        const el = document.getElementById('miniMap');
-        if(!isRotating) {
-            el.style.transform = `rotate(0deg)`;
-            hablar("Mapa fijo al Norte");
-        } else {
-            hablar("GPS Orientado");
-        }
+        document.getElementById('rotateToggle').classList.toggle('active', isRotating);
+        if(!isRotating) document.getElementById('miniMap').style.transform = `rotate(0deg)`;
     };
 
-    // ACTUALIZACIÓN: MARCACIÓN DE DIRECCIÓN EN GPS AL ACEPTAR
     window.respondTrip = async (s) => {
         await updateDoc(doc(db, "viajes", window.activeTripId), { status: 'aceptado' });
         document.getElementById('tripAlert').style.display = 'none';
         document.getElementById('finishBtn').style.display = 'block';
         
-        hablar("Aceptado. Calculando ruta hacia el cliente.");
+        hablar("Aceptado. Pasajero en seguimiento.");
 
-        // 1. Marcar el punto del pasajero con un icono distintivo
         if(passengerMarker) miniMap.removeLayer(passengerMarker);
         passengerMarker = L.marker([window.pLoc[0], window.pLoc[1]], {
-            icon: L.divIcon({html: '👤', iconSize: [30,30], className: 'p-marker'})
+            icon: L.divIcon({html: '👤', className: 'p-marker'})
         }).addTo(miniMap);
 
-        // 2. Crear la ruta visual por las calles (GPS)
         if(routingControl) miniMap.removeControl(routingControl);
-        
         routingControl = L.Routing.control({
-            waypoints: [
-                L.latLng(window.myLastPos[0], window.myLastPos[1]),
-                L.latLng(window.pLoc[0], window.pLoc[1])
-            ],
-            createMarker: () => null, // No duplicar marcadores
-            routeWhileDragging: false,
-            addWaypoints: false,
-            fitSelectedRoutes: true, // Ajustar zoom para ver toda la ruta al inicio
-            lineOptions: {
-                styles: [{ color: '#3498db', opacity: 0.8, weight: 10 }]
-            }
+            waypoints: [L.latLng(window.myLastPos[0], window.myLastPos[1]), L.latLng(window.pLoc[0], window.pLoc[1])],
+            createMarker: () => null,
+            lineOptions: { styles: [{ color: '#3498db', weight: 8 }] }
         }).addTo(miniMap);
-
-        // 3. Ajustar zoom para el inicio del viaje
-        setTimeout(() => {
-            miniMap.setZoom(17);
-        }, 1500);
     }
 
     window.finishTrip = async () => {
