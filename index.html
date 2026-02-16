@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Wilstaxtion Pro 2026 - GPS Master</title>
+    <title>Wilstaxtion Pro 2026 - GPS Fix</title>
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#070b14">
@@ -25,11 +25,10 @@
         
         body { background: var(--dark); height: 100vh; overflow: hidden; color: var(--text); position: fixed; width: 100%; }
 
-        /* Pantalla de Carga */
+        /* Splash Screen */
         #splash {
             position: fixed; inset: 0; background: var(--dark); z-index: 20000;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.5s ease;
         }
         .loader {
             width: 60px; height: 60px; border: 5px solid #1e293b; border-top: 5px solid var(--primary);
@@ -40,7 +39,7 @@
         .btn-salir-global {
             position: fixed; top: 20px; right: 20px; z-index: 15000;
             background: rgba(231, 76, 60, 0.9); color: white; border: none;
-            padding: 12px 20px; border-radius: 12px; font-weight: bold; font-size: 14px;
+            padding: 12px 20px; border-radius: 12px; font-weight: bold;
         }
 
         .full-screen {
@@ -58,44 +57,38 @@
 
         input {
             width: 100%; max-width: 340px; padding: 18px; margin: 8px 0;
-            border-radius: 15px; border: 1px solid #1e293b; font-size: 16px; 
-            background: var(--card-bg); color: white; outline: none;
+            border-radius: 15px; border: 1px solid #1e293b; background: var(--card-bg); color: white;
         }
 
         .btn-entrar {
             width: 100%; max-width: 340px; padding: 18px; background: var(--primary);
             color: var(--dark); border: none; border-radius: 15px; font-weight: 900;
-            text-transform: uppercase; margin-top: 15px;
         }
 
-        /* CONFIGURACIÓN DE MAPAS */
+        /* MAPA Y GPS */
         #map { height: 60vh; width: 100%; z-index: 1; }
         
         #miniMapContainer {
-            flex: 1; display: none; position: relative; overflow: hidden;
-            background: #000;
+            flex: 1; display: none; position: relative; overflow: hidden; background: #000;
         }
         #miniMap { 
-            height: 180%; width: 180%; position: absolute; top: -40%; left: -40%;
-            transition: transform 0.5s linear;
+            height: 200%; width: 200%; position: absolute; top: -50%; left: -50%;
+            transition: transform 0.3s linear; /* Transición más rápida para GPS */
         }
 
-        /* CONTROLES FLOTANTES */
         .map-controls {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
             display: flex; flex-direction: column; gap: 10px;
         }
         .btn-map-opt {
             background: white; border: none; width: 45px; height: 45px;
-            border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            display: flex; align-items: center; justify-content: center; font-size: 20px;
+            border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;
         }
         .btn-map-opt.active { background: var(--primary); color: white; }
 
         .p-panel {
             height: 40vh; background: var(--card-bg); border-radius: 30px 30px 0 0;
-            margin-top: -30px; position: relative; z-index: 10; padding: 25px;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.5); overflow-y: auto;
+            margin-top: -30px; position: relative; z-index: 10; padding: 25px; overflow-y: auto;
         }
 
         .status-circle {
@@ -120,14 +113,14 @@
 
 <div id="splash">
     <div class="loader"></div>
-    <h2 style="margin-top:20px; letter-spacing:3px;">WILSTAXTION PRO</h2>
+    <h2 style="margin-top:20px; color:white;">WILSTAXTION PRO</h2>
 </div>
 
 <button id="mainLogoutBtn" class="btn-salir-global" style="display:none;" onclick="quickLogout()">SALIR</button>
 
 <div id="authScreen" class="full-screen">
-    <h2 style="margin-bottom: 20px;">Bienvenido, Wil</h2>
-    <div style="display:flex; gap:10px; width:100%; max-width:340px; margin-bottom:20px;">
+    <h2>Bienvenido, Wil</h2>
+    <div style="display:flex; gap:10px; width:100%; max-width:340px; margin:20px 0;">
         <div class="role-btn active" id="btnRP" onclick="setRole('pasajero')">PASAJERO</div>
         <div class="role-btn" id="btnRT" onclick="setRole('taxi')">TAXISTA</div>
     </div>
@@ -140,7 +133,7 @@
 <div id="passengerApp" style="display:none; flex-direction:column; height:100vh;">
     <div id="map"></div>
     <div class="p-panel" id="pPanel">
-        <h3 style="color:var(--primary); margin-bottom:15px;">Conductores Activos</h3>
+        <h3 style="color:var(--primary); margin-bottom:15px;">Taxis Disponibles</h3>
         <div id="taxiList"></div>
     </div>
 </div>
@@ -153,19 +146,19 @@
     <div id="miniMapContainer">
         <div id="miniMap"></div>
         <div class="map-controls">
-            <button class="btn-map-opt" onclick="changeMapStyle('day')" title="Día">☀️</button>
-            <button class="btn-map-opt active" onclick="changeMapStyle('night')" title="Noche">🌙</button>
-            <button class="btn-map-opt" onclick="changeMapStyle('sat')" title="Satelital">🌍</button>
-            <button class="btn-map-opt active" id="rotateToggle" onclick="toggleRotation()" title="Giro GPS">🔄</button>
+            <button class="btn-map-opt" onclick="changeMapStyle('day')">☀️</button>
+            <button class="btn-map-opt active" onclick="changeMapStyle('night')">🌙</button>
+            <button class="btn-map-opt" onclick="changeMapStyle('sat')">🌍</button>
+            <button class="btn-map-opt active" id="rotateToggle" onclick="toggleRotation()">🔄</button>
         </div>
-        <button id="finishBtn" style="position:absolute; bottom:20px; right:20px; z-index:15000; background:var(--danger); color:white; border:none; padding:15px 25px; border-radius:15px; font-weight:bold; display:none;" onclick="finishTrip()">FINALIZAR VIAJE</button>
+        <button id="finishBtn" style="position:absolute; bottom:20px; right:20px; z-index:15000; background:var(--danger); color:white; border:none; padding:15px 25px; border-radius:15px; font-weight:bold; display:none;" onclick="finishTrip()">FINALIZAR</button>
     </div>
 </div>
 
 <div id="tripAlert">
-    <h2 style="color:var(--secondary)">¡HAY UN VIAJE!</h2>
+    <h2 style="color:var(--secondary)">¡NUEVO PEDIDO!</h2>
     <p id="clientName" style="margin:15px 0; font-size:20px; font-weight:bold;"></p>
-    <button onclick="respondTrip('aceptado')" style="width:100%; padding:20px; background:var(--primary); border:none; border-radius:15px; font-weight:bold; font-size:18px;">ACEPTAR</button>
+    <button onclick="respondTrip('aceptado')" style="width:100%; padding:20px; background:var(--primary); border:none; border-radius:15px; font-weight:bold;">ACEPTAR VIAJE</button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -204,6 +197,7 @@
         window.speechSynthesis.speak(u);
     }
 
+    // Calcula el rumbo (Heading) para que el mapa siempre apunte arriba
     function getHeading(p1, p2) {
         if (!p1 || !p2) return 0;
         const lat1 = p1[0] * Math.PI / 180, lat2 = p2[0] * Math.PI / 180;
@@ -214,15 +208,6 @@
     }
 
     window.onload = () => { setTimeout(() => { document.getElementById('splash').style.display='none'; }, 2000); };
-
-    window.quickLogout = async () => {
-        if(!confirm("¿Cerrar sesión Wil?")) return;
-        if(watchId) navigator.geolocation.clearWatch(watchId);
-        try {
-            if(role === 'taxi' && auth.currentUser) await deleteDoc(doc(db, "activos", auth.currentUser.uid));
-            await signOut(auth); location.reload();
-        } catch (e) { location.reload(); }
-    };
 
     window.setRole = (r) => {
         role = r;
@@ -253,7 +238,6 @@
         }
     });
 
-    // PASAJERO
     function startPassenger() {
         document.getElementById('passengerApp').style.display = 'flex';
         navigator.geolocation.getCurrentPosition(p => {
@@ -275,28 +259,9 @@
                     list.appendChild(card);
                 });
             });
-
-            onSnapshot(query(collection(db, "viajes"), where("pasajeroId", "==", auth.currentUser.uid)), snap => {
-                snap.forEach(d => {
-                    if(d.data().status === 'aceptado') {
-                        hablar("Wil ya aceptó, va en camino.");
-                        document.getElementById('pPanel').innerHTML = "<h2 style='text-align:center; color:var(--primary)'>¡WIL EN CAMINO!</h2>";
-                    }
-                });
-            });
         });
     }
 
-    window.requestRide = async (taxiId, taxiName) => {
-        hablar(`Llamando a ${taxiName}`);
-        await addDoc(collection(db, "viajes"), { 
-            pasajeroId: auth.currentUser.uid, pasajeroNombre: localStorage.getItem('pName'), 
-            taxiId, status: 'pendiente', lat: userPos[0], lng: userPos[1], timestamp: serverTimestamp() 
-        });
-        document.getElementById('pPanel').innerHTML = "<h2 style='text-align:center;'>Esperando...</h2>";
-    };
-
-    // TAXISTA
     async function startTaxi() {
         document.getElementById('taxiApp').style.display = 'flex';
         miniMap = L.map('miniMap', {zoomControl: false}).setView([0,0], 18);
@@ -318,17 +283,24 @@
         if (btn.classList.contains('off')) {
             btn.className = "status-circle on"; btn.innerText = "ON";
             document.getElementById('miniMapContainer').style.display = 'block';
-            hablar("Wil activo.");
+            hablar("GPS Activo");
             setTimeout(() => miniMap.invalidateSize(), 300);
+            
             watchId = navigator.geolocation.watchPosition(p => {
                 const c = [p.coords.latitude, p.coords.longitude];
+                
+                // CORRECCIÓN: Rotación y Centrado GPS siempre hacia arriba
                 if(isRotating && lastPos) {
                     const h = getHeading(lastPos, c);
                     document.getElementById('miniMap').style.transform = `rotate(${-h}deg)`;
                 }
-                window.myLastPos = c; myTaxiMarker.setLatLng(c); miniMap.panTo(c); lastPos = c;
+                
+                window.myLastPos = c; 
+                myTaxiMarker.setLatLng(c); 
+                miniMap.setView(c, miniMap.getZoom(), {animate: true}); // Mantiene el centro exacto
+                lastPos = c;
                 setDoc(doc(db, "activos", auth.currentUser.uid), { nombre: "Wil", lat: c[0], lng: c[1] });
-            }, null, {enableHighAccuracy: true});
+            }, null, {enableHighAccuracy: true, maximumAge: 0});
         } else {
             btn.className = "status-circle off"; btn.innerText = "OFF";
             document.getElementById('miniMapContainer').style.display = 'none';
@@ -337,38 +309,40 @@
         }
     };
 
-    // --- NUEVAS FUNCIONES DE MAPA INTELIGENTE ---
     window.changeMapStyle = (style) => {
         miniMap.removeLayer(currentTileLayer);
         currentTileLayer = L.tileLayer(mapStyles[style]).addTo(miniMap);
-        
-        document.querySelectorAll('.btn-map-opt').forEach(b => b.classList.remove('active'));
-        event.currentTarget.classList.add('active');
     };
 
     window.toggleRotation = () => {
         isRotating = !isRotating;
-        const btn = document.getElementById('rotateToggle');
-        btn.classList.toggle('active', isRotating);
+        document.getElementById('rotateToggle').classList.toggle('active', isRotating);
         if(!isRotating) document.getElementById('miniMap').style.transform = `rotate(0deg)`;
-        hablar(isRotating ? "Giro automático activo" : "Mapa fijo activo");
     };
 
-    window.respondTrip = async (s) => {
+    window.respondTrip = async () => {
         await updateDoc(doc(db, "viajes", window.activeTripId), { status: 'aceptado' });
         document.getElementById('tripAlert').style.display = 'none';
         document.getElementById('finishBtn').style.display = 'block';
-        hablar("Aceptado. Pasajero notificado.");
+        
+        // CORRECCIÓN: Acercamiento automático (Zoom) al iniciar ruta
+        miniMap.setZoom(19); 
+        
         if(routingControl) miniMap.removeControl(routingControl);
         routingControl = L.Routing.control({
             waypoints: [L.latLng(window.myLastPos[0], window.myLastPos[1]), L.latLng(window.pLoc[0], window.pLoc[1])],
             createMarker: () => null,
             lineOptions: { styles: [{ color: '#2ecc71', weight: 8 }] }
         }).addTo(miniMap);
-    }
+    };
 
     window.finishTrip = async () => {
         await deleteDoc(doc(db, "viajes", window.activeTripId));
+        location.reload();
+    };
+
+    window.quickLogout = async () => {
+        await signOut(auth);
         location.reload();
     };
 </script>
