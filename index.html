@@ -72,6 +72,7 @@
             flex: 1; position: relative; overflow: hidden; background: #000;
         }
 
+        /* Dimensiones optimizadas para evitar bordes blancos en giro */
         #map, #miniMap { 
             height: 250%; width: 250%; position: absolute; top: -75%; left: -75%;
             transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -324,9 +325,13 @@
             watchId = navigator.geolocation.watchPosition(p => {
                 const c = [p.coords.latitude, p.coords.longitude];
                 
+                // Si el giro está activo, calculamos heading y rotamos el div del mapa
                 if(isRotating && lastPos) {
                     const h = getHeading(lastPos, c);
                     document.getElementById('miniMap').style.transform = `rotate(${-h}deg)`;
+                } else if (!isRotating) {
+                    // Si no está rotando, forzamos que el div esté siempre derecho (0deg)
+                    document.getElementById('miniMap').style.transform = `rotate(0deg)`;
                 }
                 
                 window.myLastPos = c; 
@@ -353,7 +358,6 @@
         event.currentTarget.classList.add('active');
     };
 
-    // CORRECCIÓN AQUÍ: Evitar que se fije hacia abajo
     window.toggleRotation = () => {
         isRotating = !isRotating;
         const btn = document.getElementById('rotateToggle');
@@ -361,7 +365,7 @@
         
         const el = document.getElementById('miniMap');
         if(!isRotating) {
-            // Si fijamos el mapa, forzamos rotación 0 (Norte arriba)
+            // Acción inmediata: Enderezar mapa al Norte y hablar
             el.style.transform = `rotate(0deg)`;
             hablar("Mapa fijo al Norte");
         } else {
