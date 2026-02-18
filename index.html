@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Wilstaxtion Pro AI - Welcome Edition</title>
+    <title>Wilstaxtion Pro AI - Fixed Edition</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
@@ -38,8 +38,11 @@
         #miniMapContainer { perspective: 1000px; }
         #miniMap { 
             height: 250%; width: 250%; position: absolute; top: -75%; left: -75%;
-            transform: rotateX(45deg); transition: transform 0.5s; transform-origin: center center;
+            transform: rotateX(45deg); transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1); transform-origin: center center;
         }
+
+        /* Estilo para el icono de ubicación con rotación suave */
+        .loc-icon { transition: transform 0.5s ease; display: flex; align-items: center; justify-content: center; }
 
         .map-controls { position: absolute; top: 10px; left: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
         .btn-map-opt { background: white; border: none; width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #333; }
@@ -166,6 +169,9 @@
     let loggedUserName = "Conductor", inTrip = false, tripNotified = false;
     let currentPLayer, currentTLayer;
 
+    // Umbral de movimiento para evitar saltos estando estacionado (en grados coord)
+    const MOVE_THRESHOLD = 0.00003; 
+
     const mapStyles = {
         night: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
         day: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
@@ -196,7 +202,7 @@
             placa: document.getElementById('d-plate-input').value || "Sin Placa"
         };
         localStorage.setItem('driverProfile', JSON.stringify(p));
-        hablarIA("Datos de tu vehículo actualizados satisfactoriamente.");
+        hablarIA("Datos de tu vehículo actualizados.");
         window.toggleAcc();
     };
 
@@ -226,7 +232,7 @@
             await signInAnonymously(auth);
         } else {
             try { 
-                const cred = await signInWithEmailAndPassword(auth, document.getElementById('t-email').value, document.getElementById('t-pass').value);
+                await signInWithEmailAndPassword(auth, document.getElementById('t-email').value, document.getElementById('t-pass').value);
                 loggedUserName = document.getElementById('t-email').value.split('@')[0].toUpperCase();
             } catch { alert("Error de acceso"); }
         }
@@ -240,11 +246,9 @@
         }
     });
 
-    // --- LÓGICA PASAJERO ---
     function startPassenger() {
         const pName = localStorage.getItem('pName') || "Usuario";
-        hablarIA(`¡Bienvenido a Wilstaxtion, ${pName}! Te encuentras en tu sistema de bienvenida al transporte premium. Estamos listos para llevarte a tu destino. Selecciona un conductor de la lista para comenzar.`);
-        
+        hablarIA(`Bienvenido, ${pName}.`);
         document.getElementById('passengerApp').style.display = 'flex';
         navigator.geolocation.watchPosition(p => {
             userPos = [p.coords.latitude, p.coords.longitude];
@@ -253,19 +257,19 @@
                 currentPLayer = L.tileLayer(mapStyles.night).addTo(map);
                 L.circleMarker(userPos, {radius: 9, color: '#3498db', fillOpacity: 0.8, fillColor: '#fff'}).addTo(map);
             }
-        });
+        }, null, {enableHighAccuracy: true});
 
         onSnapshot(query(collection(db, "viajes"), where("pasajeroId", "==", auth.currentUser.uid)), snap => {
-            if(snap.empty) { document.getElementById('connectingOverlay').style.display = 'none'; tripNotified = false; return; }
+            if(snap.empty) { document.getElementById('connectingOverlay').style.display = 'none'; return; }
             snap.forEach(v => {
                 const d = v.data();
                 if(d.status === 'aceptado' && !tripNotified) {
                     tripNotified = true;
                     document.getElementById('connectingOverlay').style.display = 'none';
-                    document.getElementById('pStatusTitle').innerHTML = `<b style="color:var(--primary)">${d.driverName} VA EN CAMINO</b>`;
-                    hablarIA(`¡Confirmado! Tu conductor ${d.driverName} aceptó la solicitud. Ya inició el recorrido y va en camino. Por favor, mantente atento.`);
+                    document.getElementById('pStatusTitle').innerHTML = `<b>${d.driverName} EN CAMINO</b>`;
+                    hablarIA(`Tu conductor ${d.driverName} va en camino.`);
                 }
-                if(d.status === 'finalizado') { hablarIA("Viaje terminado satisfactoriamente. Gracias por confiar en nosotros."); deleteDoc(doc(db, "viajes", v.id)); }
+                if(d.status === 'finalizado') { hablarIA("Viaje terminado."); deleteDoc(doc(db, "viajes", v.id)); location.reload(); }
             });
         });
 
@@ -286,21 +290,28 @@
 
     window.requestRide = async (taxiId, dName) => {
         document.getElementById('connectingOverlay').style.display = 'flex';
-        hablarIA(`Conectando con la unidad de ${dName}. Por favor espera un momento.`);
+        hablarIA(`Solicitando a ${dName}.`);
         await addDoc(collection(db, "viajes"), { 
             pasajeroId: auth.currentUser.uid, pasajeroNombre: localStorage.getItem('pName'), 
             taxiId, driverName: dName, status: 'pendiente', lat: userPos[0], lng: userPos[1], timestamp: serverTimestamp() 
         });
     };
 
-    // --- LÓGICA CONDUCTOR ---
     function startTaxi() {
-        hablarIA(`Hola ${loggedUserName}, bienvenido a tu central de transporte y solicitudes en el sistema virtual. El radar está listo para recibir nuevos servicios.`);
-        
+        hablarIA(`Hola ${loggedUserName}.`);
         document.getElementById('taxiApp').style.display = 'flex';
         miniMap = L.map('miniMap', {zoomControl: false}).setView([0,0], 19);
         currentTLayer = L.tileLayer(mapStyles.night).addTo(miniMap);
-        myMarker = L.marker([0,0], {icon: L.divIcon({html: '<i class="fas fa-location-arrow" style="color:var(--primary); font-size:40px; transform:rotate(-45deg);"></i>'})}).addTo(miniMap);
+        
+        // Icono corregido para que la flecha siempre apunte hacia arriba (norte del dispositivo)
+        myMarker = L.marker([0,0], {
+            icon: L.divIcon({
+                className: 'loc-icon',
+                html: '<i class="fas fa-location-arrow" style="color:var(--primary); font-size:40px; transform:rotate(-45deg);"></i>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            })
+        }).addTo(miniMap);
         
         onSnapshot(query(collection(db, "viajes"), where("taxiId", "==", auth.currentUser.uid)), snap => {
             snap.forEach(v => {
@@ -308,7 +319,7 @@
                     window.activeTripId = v.id; window.pLoc = [v.data().lat, v.data().lng];
                     document.getElementById('clientName').innerText = v.data().pasajeroNombre;
                     document.getElementById('tripAlert').style.display = 'block';
-                    hablarIA(`Alerta. ${loggedUserName}, tienes una nueva solicitud de servicio de ${v.data().pasajeroNombre}.`);
+                    hablarIA(`Nueva solicitud de ${v.data().pasajeroNombre}.`);
                 }
             });
         });
@@ -320,19 +331,32 @@
         document.getElementById('statusToggle').classList.toggle('on', !isOff);
         
         if(!isOff) {
-            hablarIA(`Sistema de radar activado. Estás en línea, ${loggedUserName}.`);
+            hablarIA(`En línea.`);
             navigator.geolocation.watchPosition(p => {
                 const c = [p.coords.latitude, p.coords.longitude];
+                
+                // --- CORRECCIÓN: FILTRO ESTACIONADO ---
+                if (lastPos) {
+                    const dist = Math.sqrt(Math.pow(c[0] - lastPos[0], 2) + Math.pow(c[1] - lastPos[1], 2));
+                    if (dist < MOVE_THRESHOLD) return; // Si el movimiento es despreciable, no actualiza el mapa
+                }
+
+                // --- CORRECCIÓN: RUMBO Y ROTACIÓN ---
                 if(lastPos) {
                     const h = getHeading(lastPos, c);
+                    // Giramos el mapa para que el frente sea arriba
                     document.getElementById('miniMap').style.transform = `rotateX(45deg) rotateZ(${-h}deg)`;
                 }
-                myMarker.setLatLng(c); miniMap.setView(c, 19); lastPos = c;
+
+                myMarker.setLatLng(c); 
+                miniMap.setView(c, 19); 
+                lastPos = c;
+
                 const pInfo = JSON.parse(localStorage.getItem('driverProfile')) || {auto:"Taxi", placa:"N/A"};
                 setDoc(doc(db, "activos", auth.currentUser.uid), { nombre: loggedUserName, ...pInfo, lat: c[0], lng: c[1], online: true, busy: inTrip });
-            }, null, {enableHighAccuracy: true});
+            }, null, {enableHighAccuracy: true, maximumAge: 1000});
         } else { 
-            hablarIA("Sistema desconectado.");
+            hablarIA("Desconectado.");
             updateDoc(doc(db, "activos", auth.currentUser.uid), { online: false }); 
         }
     };
@@ -344,7 +368,7 @@
             await updateDoc(doc(db, "activos", auth.currentUser.uid), { busy: true });
             document.getElementById('tripAlert').style.display = 'none';
             document.getElementById('driverUI').style.display = 'flex';
-            hablarIA("Servicio aceptado. Generando ruta óptima en el mapa virtual.");
+            hablarIA("Aceptado.");
 
             if(routingControl) miniMap.removeControl(routingControl);
             routingControl = L.Routing.control({
@@ -355,14 +379,13 @@
         } else {
             await updateDoc(doc(db, "viajes", window.activeTripId), { status: 'rechazado' });
             document.getElementById('tripAlert').style.display = 'none';
-            hablarIA("Solicitud rechazada.");
         }
     };
 
     window.finishTrip = async () => {
-        hablarIA("Servicio completado. Has llegado a tu destino.");
+        hablarIA("Servicio finalizado.");
         await updateDoc(doc(db, "viajes", window.activeTripId), { status: 'finalizado' });
-        setTimeout(() => location.reload(), 3000);
+        setTimeout(() => location.reload(), 2000);
     };
 
     window.quickLogout = () => { auth.signOut(); location.reload(); };
